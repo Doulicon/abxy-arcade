@@ -15,7 +15,7 @@
 │  │  ├─ Node.js 22 + Express 后端          │  │
 │  │  ├─ web/dist 前端静态资源              │  │
 │  │  └─ EmulatorJS 运行时（本地同源加载）   │  │
-│  │  端口: ${HOST_PORT} → 容器 3000        │  │
+│  │  端口: ${HOST_PORT}(30000) → 容器 3000   │  │
 │  └───────────────────────────────────────┘  │
 │              ↕ 挂载                         │
 │  /vol1/1000/docker/abxy-arcade/data         │
@@ -108,7 +108,7 @@ vi .env      # 或用飞牛文件管理器图形化编辑
 |---|---|---|
 | `JWT_SECRET` | JWT 签名密钥 | 换成随机长字符串 |
 | `PUID` / `PGID` | 容器内 node 用户身份 | 填上面 `id` 命令查到的值（飞牛默认 `1000` / `1001`）|
-| `HOST_PORT` | NAS 上对外端口 | 3000（冲突就改，如 8080）|
+| `HOST_PORT` | NAS 上对外端口 | 30000（冲突就改，如 8080）|
 | `ADMIN_PASSWORD` | 初始管理员密码 | 改成自己的强密码 |
 | `ALLOW_REGISTER` | 是否开放注册 | 私人用建议 `false` |
 
@@ -180,7 +180,7 @@ docker compose logs -f abxy-arcade
 
 ```bash
 # 健康检查
-curl http://127.0.0.1:3000/api/health
+curl http://127.0.0.1:30000/api/health
 # 应返回：{"ok":true,"uptime":...}
 
 # 容器状态
@@ -188,7 +188,7 @@ docker compose ps
 # STATUS 应为 healthy
 ```
 
-浏览器访问：`http://<NAS-IP>:3000`
+浏览器访问：`http://<NAS-IP>:30000`
 
 ---
 
@@ -266,7 +266,7 @@ sudo chown -R 1000:1001 data
 
 ```bash
 # 查看占用
-sudo ss -tlnp | grep 3000
+sudo ss -tlnp | grep 30000
 # 改 .env 里的 HOST_PORT，比如 8080
 ```
 
@@ -346,5 +346,5 @@ docker compose exec abxy-arcade sh   # 进入容器
 1. **修改默认管理员密码**（后台 → 账号，或改 `.env` 后重建）
 2. **设置 `ALLOW_REGISTER=false`** 关闭公开注册（私人使用）
 3. **使用随机 `JWT_SECRET`**
-4. **不要把 3000 端口直接暴露到公网** —— 若需外网访问，用飞牛的远程访问（FN Connect）或反向代理 + HTTPS + 访问控制
+4. **不要把 30000 端口直接暴露到公网** —— 若需外网访问，用飞牛的远程访问（FN Connect）或反向代理 + HTTPS + 访问控制
 5. **定期备份 `data/` 目录**

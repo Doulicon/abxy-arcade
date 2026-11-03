@@ -15,9 +15,9 @@ services:
     image: abxy-arcade:latest
     container_name: abxy-arcade
     ports:
-      # 左边是 NAS 上的端口，右边是容器内端口（固定 3000）
-      # 如与 NAS 上已有服务冲突，改成 "8080:3000" 之类即可
-      - "${HOST_PORT:-3000}:3000"
+      # 左边是 NAS 上的对外端口（由 .env 的 HOST_PORT 控制），右边是容器内端口（固定 3000）
+      # 如与 NAS 上已有服务冲突，改 .env 里的 HOST_PORT 即可
+      - "${HOST_PORT:-30000}:3000"
     environment:
       PORT: "3000"
       DATA_DIR: /data
