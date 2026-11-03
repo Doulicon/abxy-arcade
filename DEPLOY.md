@@ -69,14 +69,79 @@ cd abxy-arcade
 
 ## 阶段二：拉取代码
 
+### 2.1 先修复 Git（飞牛 fnOS 必做）
+
+飞牛**应用中心安装的 Git** 存在已知缺陷：它的 `libexec/git-core/` 目录没有加入 PATH，
+导致 `git clone` 报错：
+
+```
+git: 'remote-http' is not a git command.
+```
+
+**方案 A：建立软链接（推荐，改动最小）**
+
+```bash
+# 1. 确认 git-remote-http 的实际位置
+ls /vol1/@appcenter/git/libexec/git-core/ | grep remote
+
+# 2. 建立软链接到系统 PATH 目录（vol1 按你的存储卷调整）
+sudo ln -sf /vol1/@appcenter/git/libexec/git-core/git-remote-http  /usr/local/bin/git-remote-http
+sudo ln -sf /vol1/@appcenter/git/libexec/git-core/git-remote-https /usr/local/bin/git-remote-https
+
+# 3. 验证
+git-remote-http --help >/dev/null && echo "OK：git-remote-http 已就绪"
+```
+
+> 如果提示 `templates not found`，再补一条：
+> ```bash
+> sudo ln -sf /vol1/@appcenter/git/share/git-core/templates /var/packages/git/target/share/git-core/templates
+> ```
+
+**方案 B：底层安装系统级 Git（更彻底）**
+
+```bash
+sudo apt update
+sudo apt install -y git
+
+# 确认优先使用的是系统版
+which -a git
+git --version
+```
+
+**方案 C：临时指定执行路径（仅用于快速验证）**
+
+```bash
+GIT_EXEC_PATH=/vol1/@appcenter/git/libexec/git-core \
+  git clone http://192.168.0.227:30001/Gitea/ABXY.git .
+```
+
+### 2.2 克隆仓库
+
 ```bash
 cd /vol1/1000/docker/abxy-arcade
 
-# 克隆仓库（若提示输入用户名密码，用你的 Gitea 账号）
+# 克隆仓库
 git clone http://192.168.0.227:30001/Gitea/ABXY.git .
+```
 
-# 若仓库要求密码，配置免密（可选）
-git config credential.helper store
+**仓库是私有的**，会要求认证。两种方式：
+
+```bash
+# 方式 1：交互式输入 Gitea 用户名 + 密码
+#   Username: 你的 Gitea 用户名
+#   Password: 你的 Gitea 密码
+
+# 方式 2：使用 Personal Access Token（推荐，密码改了也不影响）
+#   在 Gitea 打开：右上角头像 → 设置 → 应用 → 生成令牌
+#   勾选 repo 权限，生成后复制令牌
+git clone http://<用户名>:<令牌>@192.168.0.227:30001/Gitea/ABXY.git .
+```
+
+**保存凭据免密输入**（可选）：
+
+```bash
+git config --global credential.helper store
+# 下次 clone/pull 会自动读取 ~/.git-credentials
 ```
 
 克隆后目录结构：
@@ -245,6 +310,40 @@ docker compose start
 ---
 
 ## 常见问题
+
+### git: 'remote-http' is not a git command
+
+飞牛 fnOS 应用中心安装的 Git 缺少 PATH 配置，`git-remote-http` 找不到。
+**解决办法见 [阶段二 2.1](#21-先修复-git飞牛-fnos-必做)**，最常用的是建软链接：
+
+```bash
+sudo ln -sf /vol1/@appcenter/git/libexec/git-core/git-remote-http  /usr/local/bin/git-remote-http
+sudo ln -sf /vol1/@appcenter/git/libexec/git-core/git-remote-https /usr/local/bin/git-remote-https
+```
+
+### git clone 提示 Authentication failed
+
+仓库是私有的。生成 Gitea 的 Personal Access Token（设置 → 应用 → 生成令牌，勾 `repo` 权限）：
+
+```bash
+git clone http://<用户名>:<令牌>@192.168.0.227:30001/Gitea/ABXY.git .
+```
+
+保存凭据免密输入：`git config --global credential.helper store`
+
+### 不想用 git 拉代码（兜底方案）
+
+直接从 Gitea 下载归档包解压到部署目录，效果与 clone 相同（但无法 `git pull` 更新）：
+
+```bash
+cd /vol1/1000/docker/abxy-arcade
+
+curl -u "<Gitea用户名>:<密码或令牌>" -L -o ABXY.tar.gz \
+  "http://192.168.0.227:30001/Gitea/ABXY/archive/main.tar.gz"
+
+tar -xzf ABXY.tar.gz --strip-components=1
+rm ABXY.tar.gz
+```
 
 ### 容器起不来 / 反复重启
 
