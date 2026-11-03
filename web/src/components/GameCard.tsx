@@ -1,0 +1,93 @@
+import { Link } from 'react-router-dom';
+import { useI18n } from '../i18n';
+import type { Game } from '../types';
+import { IconPlay, IconStar } from './Icons';
+import { PixelCard } from './PixelCard';
+import { GameCover } from './ui';
+
+/** 把 "动作 / 射击、街机" 这类自由填写拆成多个类型标签 */
+function splitGenres(genre: string) {
+  return genre
+    .split(/[,，、/|·;；]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * 游戏卡片（横向）：上方 16:9 横图（贴近显示器比例，直接传截图即可），
+ * 下方 68px 文字区：游戏名（两行截断）+ 最多两枚类型标签。
+ * 平台标签在图片右下角，精选星标左上，缺 ROM 提示右上。
+ */
+export function GameCard({ game, index = 0 }: { game: Game; index?: number }) {
+  const { t } = useI18n();
+  // 文字区只有 76px：最多两枚标签，保证「名称两行 + 标签一行」不换行、不溢出
+  const genres = splitGenres(game.genre).slice(0, 2);
+
+  return (
+    <Link
+      to={`/game/${game.id}`}
+      className="group block h-full animate-popin"
+      style={{ animationDelay: `${Math.min(index, 12) * 20}ms` }}
+      title={game.title}
+    >
+      <PixelCard>
+        <div className="card-art card-art--game">
+          <div className="h-full w-full transition-transform duration-300 group-hover:scale-[1.06]">
+            <GameCover game={game} className="pixel-img" />
+          </div>
+
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-60 transition-opacity group-hover:opacity-90" />
+
+          <div className="absolute left-1.5 top-1.5 flex items-center gap-1">
+            {game.featured && (
+              <span className="inline-flex items-center border border-[#ffd16666] bg-[#ffd1661a] px-1 py-0.5 text-[9px] font-black text-[#ffd166]">
+                <IconStar className="h-2.5 w-2.5" strokeWidth={2.4} />
+              </span>
+            )}
+          </div>
+
+          {/* 平台标签：移到图片右下角，字号比原来大一档 */}
+          <span
+            className="platform-badge"
+            style={{
+              color: game.platformColor,
+              borderColor: `${game.platformColor}80`,
+              background: 'rgba(4,10,24,.86)',
+              textShadow: `0 0 8px ${game.platformColor}55`,
+            }}
+          >
+            {game.platformShort}
+          </span>
+
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="px-btn-shape flex h-10 w-10 translate-y-2 items-center justify-center border-2 border-neon bg-neon/90 text-[#04101f] opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+              <IconPlay className="ml-0.5 h-4 w-4" />
+            </span>
+          </div>
+
+          {!game.hasRom && (
+            <div className="absolute right-1.5 top-1.5 border border-[#ffb54766] bg-black/75 px-1 py-0.5 text-[8px] font-bold text-amber">
+              {t('game.noRom')}
+            </div>
+          )}
+        </div>
+
+        <div className="card-body card-body--game">
+          <h3 className="card-title card-title--game line-clamp-2 text-white transition-colors group-hover:text-neon">
+            {game.title}
+          </h3>
+
+          {genres.length > 0 && (
+            <div className="flex flex-nowrap gap-1 overflow-hidden" title={game.genre}>
+              {genres.map((g) => (
+                <span key={g} className="genre-chip">
+                  {g}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </PixelCard>
+    </Link>
+  );
+}

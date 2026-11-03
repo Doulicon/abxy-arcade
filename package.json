@@ -1,0 +1,26 @@
+{
+  "name": "abxy-arcade",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pixel-style retro game emulator portal",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "dev:web": "npm --prefix web run dev",
+    "build:web": "npm --prefix web install && npm --prefix web run build",
+    "build": "npm --prefix web run build"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.10.0",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.1",
+    "nanoid": "^5.0.9"
+  }
+}
