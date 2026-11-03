@@ -2,18 +2,25 @@
 FROM node:22-bookworm-slim AS webbuild
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json* ./
-RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+RUN npm ci --no-audit --no-fund --registry=https://registry.npmmirror.com \
+  || npm install --no-audit --no-fund --registry=https://registry.npmmirror.com
 COPY web/ ./
 RUN npm run build
 
-# ---------- 2. 安装后端依赖（better-sqlite3 需要编译工具） ----------
+# ---------- 2. 安装后端依赖（better-sqlite3 用预编译二进制，无需编译工具链） ----------
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ ca-certificates \
+# 国内环境：Debian 源换成阿里云（只需 ca-certificates 用于 HTTPS）
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true \
+  && sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates \
   && rm -rf /var/lib/apt/lists/*
+# better-sqlite3 预编译二进制走 npmmirror 镜像，跳过 node-gyp 源码编译（大幅提速）
+ENV npm_config_better_sqlite3_binary_host_mirror=https://cdn.npmmirror.com/binaries/better-sqlite3
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev --no-audit --no-fund || npm install --omit=dev --no-audit --no-fund
+RUN npm ci --omit=dev --no-audit --no-fund --registry=https://registry.npmmirror.com \
+  || npm install --omit=dev --no-audit --no-fund --registry=https://registry.npmmirror.com
 
 # ---------- 3. 运行镜像 ----------
 FROM node:22-bookworm-slim
@@ -21,8 +28,11 @@ ENV NODE_ENV=production \
     DATA_DIR=/data \
     PORT=3000
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends gosu passwd ca-certificates \
+# 国内环境：Debian 源换成阿里云（gosu/ca-certificates 是轻量包，换源后明显加速）
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true \
+  && sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends gosu ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

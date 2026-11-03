@@ -11,6 +11,19 @@ export const DATA_DIR = process.env.DATA_DIR
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
+/**
+ * 各类数据目录：默认都挂在 DATA_DIR 下，可通过独立环境变量覆盖，
+ * 便于用 Docker 卷把 ROM / BIOS / 封面 / 素材单独映射到宿主机自定义路径。
+ */
+function resolveSubDir(envName, defaultName) {
+  return process.env[envName] ? path.resolve(process.env[envName]) : path.join(DATA_DIR, defaultName);
+}
+
+export const ROM_DIR = resolveSubDir('ROM_DIR', 'roms');
+export const COVER_DIR = resolveSubDir('COVER_DIR', 'covers');
+export const BIOS_DIR = resolveSubDir('BIOS_DIR', 'bios');
+export const ASSET_DIR = resolveSubDir('ASSET_DIR', 'assets');
+
 /** 持久化 JWT 密钥，避免重启后登录态全部失效 */
 function resolveSecret() {
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET;

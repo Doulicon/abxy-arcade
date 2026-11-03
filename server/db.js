@@ -2,12 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
-import { DATA_DIR, ADMIN_USERNAME, ADMIN_PASSWORD } from './config.js';
+import { DATA_DIR, ROM_DIR, COVER_DIR, BIOS_DIR, ASSET_DIR, ADMIN_USERNAME, ADMIN_PASSWORD } from './config.js';
 
-export const ROM_DIR = path.join(DATA_DIR, 'roms');
-export const COVER_DIR = path.join(DATA_DIR, 'covers');
-export const BIOS_DIR = path.join(DATA_DIR, 'bios');
-export const ASSET_DIR = path.join(DATA_DIR, 'assets');
+export { ROM_DIR, COVER_DIR, BIOS_DIR, ASSET_DIR };
 fs.mkdirSync(ROM_DIR, { recursive: true });
 fs.mkdirSync(COVER_DIR, { recursive: true });
 fs.mkdirSync(BIOS_DIR, { recursive: true });

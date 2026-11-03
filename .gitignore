@@ -7,7 +7,5 @@ data/
 .env
 .env.local
 .workbuddy/
+.git-rewrite/
 release-data/
-abxy-data.tar.gz
-abxy-bundle.tar.gz
-abxy-bundle.zip

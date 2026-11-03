@@ -4,6 +4,10 @@ web/dist
 data
 .git
 .gitignore
+.env
+.env.local
+.env.*
+!.env.example
 README.md
 *.log
 .DS_Store
