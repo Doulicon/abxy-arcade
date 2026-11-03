@@ -26,7 +26,9 @@ cd "$DEPLOY_DIR"
 
 CODE_ZIP=""
 CODE_TGZ=""
+CODE_TAR=""
 DATA_TGZ=""
+BUNDLE=""
 
 # ---------- 0. 环境检查 ----------
 echo "=============================================="
@@ -45,63 +47,106 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-# ---------- 1. 定位代码归档 ----------
-echo "[1/6] 查找代码归档..."
+# ---------- 1. 定位归档文件 ----------
+echo "[1/6] 查找归档文件..."
 for f in abxy-code.zip ABXY.zip abxy.zip code.zip; do
   [ -f "$f" ] && CODE_ZIP="$f" && break
 done
 for f in abxy-code.tar.gz ABXY.tar.gz abxy.tar.gz code.tar.gz main.tar.gz; do
   [ -f "$f" ] && CODE_TGZ="$f" && break
 done
+for f in abxy-code.tar ABXY.tar code.tar; do
+  [ -f "$f" ] && CODE_TAR="$f" && break
+done
 for f in abxy-data.tar.gz data.tar.gz; do
   [ -f "$f" ] && DATA_TGZ="$f" && break
 done
+# 整合包：内含 abxy-code.zip + abxy-data.tar.gz
+for f in abxy-bundle.tar.gz abxy-bundle.tar ABXY-bundle.tar.gz; do
+  [ -f "$f" ] && BUNDLE="$f" && break
+done
 
-if [ -z "$CODE_ZIP" ] && [ -z "$CODE_TGZ" ]; then
-  echo "[错误] 没找到代码归档包。请确认以下任一文件存在于 $DEPLOY_DIR :"
-  echo "         abxy-code.zip / ABXY.zip / abxy.zip / code.zip"
-  echo "         abxy-code.tar.gz / ABXY.tar.gz / abxy.tar.gz / code.tar.gz"
-  exit 1
+# ---------- 2. 解压 ----------
+echo "[2/6] 解压..."
+
+# 2a. 先处理整合包：解开后里面才是 code + data
+if [ -n "$BUNDLE" ]; then
+  echo "      发现整合包: $BUNDLE"
+  case "$BUNDLE" in
+    *.tar.gz) tar -xzf "$BUNDLE" ;;
+    *.tar)    tar -xf  "$BUNDLE" ;;
+    *.zip)    unzip -qo "$BUNDLE" ;;
+  esac
+  # 解开后重新扫描
+  for f in abxy-code.zip ABXY.zip abxy.zip code.zip; do
+    [ -f "$f" ] && CODE_ZIP="$f" && break
+  done
+  for f in abxy-code.tar.gz ABXY.tar.gz abxy.tar.gz code.tar.gz main.tar.gz; do
+    [ -f "$f" ] && CODE_TGZ="$f" && break
+  done
+  for f in abxy-data.tar.gz data.tar.gz; do
+    [ -f "$f" ] && DATA_TGZ="$f" && break
+  done
 fi
-echo "      代码归档: ${CODE_ZIP:-$CODE_TGZ}"
 
-# ---------- 2. 解压代码 ----------
-echo "[2/6] 解压代码..."
+# 2b. 解压代码
 if [ -n "$CODE_ZIP" ]; then
-  # unzip 不可用时退回 python
+  echo "      代码归档: $CODE_ZIP"
+  rm -rf ./_extract && mkdir -p ./_extract
   if command -v unzip >/dev/null 2>&1; then
     unzip -qo "$CODE_ZIP" -d ./_extract
   elif command -v python3 >/dev/null 2>&1; then
-    python3 -c "
-import zipfile, sys
-z = zipfile.ZipFile('$CODE_ZIP')
-z.extractall('./_extract')
-"
+    python3 -c "import zipfile; zipfile.ZipFile('$CODE_ZIP').extractall('./_extract')"
   else
     echo "[错误] 系统既没有 unzip 也没有 python3，无法解压 zip。"
     exit 1
   fi
-else
-  mkdir -p ./_extract
+elif [ -n "$CODE_TGZ" ]; then
+  echo "      代码归档: $CODE_TGZ"
+  rm -rf ./_extract && mkdir -p ./_extract
   tar -xzf "$CODE_TGZ" -C ./_extract
-fi
-
-# Gitea 归档包解压后是 abxy/ 单层目录，需要剥离
-SRC_DIR="._extract/abxy"
-if [ ! -d "$SRC_DIR" ]; then
-  # 兜底：取第一个子目录
-  SRC_DIR="$(find ./_extract -mindepth 1 -maxdepth 1 -type d | head -1)"
-fi
-if [ ! -d "$SRC_DIR" ]; then
-  echo "[错误] 归档结构异常，未找到顶层目录。"
+elif [ -n "$CODE_TAR" ]; then
+  echo "      代码归档: $CODE_TAR"
+  rm -rf ./_extract && mkdir -p ./_extract
+  tar -xf "$CODE_TAR" -C ./_extract
+elif [ -f Dockerfile ] && [ -d server ] && [ -d web ]; then
+  # 代码已经解压好在当前目录（用户手动解过），直接跳过
+  echo "      检测到代码已就位（Dockerfile / server / web 均存在），跳过解压"
+elif [ -f abxy/Dockerfile ] && [ -d abxy/server ] && [ -d abxy/web ]; then
+  # 代码解压在 abxy/ 子目录里（Gitea 归档的默认结构）
+  echo "      检测到 abxy/ 子目录中已有代码，搬运到部署目录"
+  cp -a abxy/. ./
+  rm -rf abxy
+  echo "      代码已就位"
+else
+  echo "[错误] 没找到代码归档包。请确认以下任一文件存在于 $DEPLOY_DIR :"
+  echo "         abxy-code.zip / ABXY.zip / abxy.zip / code.zip"
+  echo "         abxy-code.tar.gz / ABXY.tar.gz / abxy.tar.gz / code.tar.gz"
+  echo "         abxy-code.tar / ABXY.tar"
+  echo "         abxy-bundle.tar.gz / abxy-bundle.tar"
+  echo "       或者先把代码解压到当前目录（需含 Dockerfile、server/、web/）"
   exit 1
 fi
-echo "      归档顶层: $SRC_DIR"
 
-# 拷贝代码（保留已存在的 data/ 和 .env）
-cp -a "$SRC_DIR"/. ./
-rm -rf ./_extract
-echo "      代码已就位"
+# 只有找到归档才需要搬运目录
+if [ -n "$CODE_ZIP" ] || [ -n "$CODE_TGZ" ] || [ -n "$CODE_TAR" ]; then
+  # Gitea 归档包解压后是 abxy/ 单层目录，需要剥离
+  SRC_DIR="./_extract/abxy"
+  if [ ! -d "$SRC_DIR" ]; then
+    # 兜底：取第一个子目录
+    SRC_DIR="$(find ./_extract -mindepth 1 -maxdepth 1 -type d | head -1)"
+  fi
+  if [ ! -d "$SRC_DIR" ]; then
+    echo "[错误] 归档结构异常，未找到顶层目录。"
+    exit 1
+  fi
+  echo "      归档顶层: $SRC_DIR"
+
+  # 拷贝代码（保留已存在的 data/ 和 .env）
+  cp -a "$SRC_DIR"/. ./
+  rm -rf ./_extract
+  echo "      代码已就位"
+fi
 
 # ---------- 3. 解压数据 ----------
 echo "[3/6] 解压数据..."
