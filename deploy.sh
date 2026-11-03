@@ -24,6 +24,40 @@ set -e
 DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DEPLOY_DIR"
 
+# ---------- 0.0 locale 兜底 ----------
+# 脚本输出含中文。若 NAS 的 locale 不是 UTF-8（如 LANG=C），部分 shell 会把多字节
+# 字符误判为语法错误。优先切到系统里存在的 UTF-8 locale，没有就保持原样。
+if [ "${LC_ALL:-}" != "C.UTF-8" ] && [ "${LANG:-}" != "C.UTF-8" ]; then
+  for _loc in C.UTF-8 en_US.UTF-8 zh_CN.UTF-8; do
+    if locale -a 2>/dev/null | grep -qix "$_loc"; then
+      export LC_ALL="$_loc" LANG="$_loc"
+      break
+    fi
+  done
+fi
+
+# ---------- 0.0 自愈：检测并修复 CRLF 行尾 ----------
+# Windows 上传/解压可能把行尾变成 CRLF，Linux 执行时会报 "\r: command not found"。
+# 检测方式：把去掉 CR 的内容与原文件比对（不依赖 file 命令，Linux/macOS 都可用）。
+#
+# 注意：这里修复后直接退出并提示重跑，而不是 exec 重入 —— bash 是边读边执行的，
+# 在执行过程中替换自身文件会导致后续读取错位。
+if ! LC_ALL=C tr -d '\r' < "$0" 2>/dev/null | cmp -s - "$0" 2>/dev/null; then
+  echo "[自愈] 检测到 CRLF 行尾,正在转换为 LF..."
+  if LC_ALL=C tr -d '\r' < "$0" > "$0.lf.tmp" 2>/dev/null \
+     && mv "$0.lf.tmp" "$0" 2>/dev/null \
+     && chmod +x "$0" 2>/dev/null; then
+    echo ""
+    echo "[自愈] 转换完成,请重新执行一次:"
+    echo "        ./deploy.sh"
+    echo ""
+    exit 0
+  fi
+  echo "[自愈] 自动转换失败,请手动执行:"
+  echo "        sed -i 's/\r\$//' deploy.sh && ./deploy.sh"
+  exit 1
+fi
+
 CODE_ZIP=""
 CODE_TGZ=""
 CODE_TAR=""
@@ -37,14 +71,17 @@ echo " 部署目录: $DEPLOY_DIR"
 echo "=============================================="
 echo ""
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "[错误] 未找到 docker 命令。请先在 NAS 应用中心安装 Docker 应用。"
-  exit 1
-fi
+# SKIP_BUILD=1 时跳过 docker 检查与构建（用于本地调试 / 无 Docker 环境）
+if [ "$SKIP_BUILD" != "1" ]; then
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "[错误] 未找到 docker 命令.请先在 NAS 应用中心安装 Docker 应用."
+    exit 1
+  fi
 
-if ! docker compose version >/dev/null 2>&1; then
-  echo "[错误] 未找到 docker compose 插件。"
-  exit 1
+  if ! docker compose version >/dev/null 2>&1; then
+    echo "[错误] 未找到 docker compose 插件."
+    exit 1
+  fi
 fi
 
 # ---------- 1. 定位归档文件 ----------
@@ -98,7 +135,7 @@ if [ -n "$CODE_ZIP" ]; then
   elif command -v python3 >/dev/null 2>&1; then
     python3 -c "import zipfile; zipfile.ZipFile('$CODE_ZIP').extractall('./_extract')"
   else
-    echo "[错误] 系统既没有 unzip 也没有 python3，无法解压 zip。"
+    echo "[错误] 系统既没有 unzip 也没有 python3,无法解压 zip."
     exit 1
   fi
 elif [ -n "$CODE_TGZ" ]; then
@@ -111,20 +148,24 @@ elif [ -n "$CODE_TAR" ]; then
   tar -xf "$CODE_TAR" -C ./_extract
 elif [ -f Dockerfile ] && [ -d server ] && [ -d web ]; then
   # 代码已经解压好在当前目录（用户手动解过），直接跳过
-  echo "      检测到代码已就位（Dockerfile / server / web 均存在），跳过解压"
+  echo "      检测到代码已就位(Dockerfile / server / web 均存在),跳过解压"
 elif [ -f abxy/Dockerfile ] && [ -d abxy/server ] && [ -d abxy/web ]; then
   # 代码解压在 abxy/ 子目录里（Gitea 归档的默认结构）
-  echo "      检测到 abxy/ 子目录中已有代码，搬运到部署目录"
+  echo "      检测到 abxy/ 子目录中已有代码,搬运到部署目录"
+  # 同样要避开覆盖正在执行的脚本自身
+  if [ -f abxy/deploy.sh ]; then
+    mv abxy/deploy.sh abxy/deploy.sh.new 2>/dev/null || true
+  fi
   cp -a abxy/. ./
   rm -rf abxy
   echo "      代码已就位"
 else
-  echo "[错误] 没找到代码归档包。请确认以下任一文件存在于 $DEPLOY_DIR :"
+  echo "[错误] 没找到代码归档包.请确认以下任一文件存在于 $DEPLOY_DIR :"
   echo "         abxy-code.zip / ABXY.zip / abxy.zip / code.zip"
   echo "         abxy-code.tar.gz / ABXY.tar.gz / abxy.tar.gz / code.tar.gz"
   echo "         abxy-code.tar / ABXY.tar"
   echo "         abxy-bundle.tar.gz / abxy-bundle.tar"
-  echo "       或者先把代码解压到当前目录（需含 Dockerfile、server/、web/）"
+  echo "       或者先把代码解压到当前目录(需含 Dockerfile、server/、web/)"
   exit 1
 fi
 
@@ -137,12 +178,22 @@ if [ -n "$CODE_ZIP" ] || [ -n "$CODE_TGZ" ] || [ -n "$CODE_TAR" ]; then
     SRC_DIR="$(find ./_extract -mindepth 1 -maxdepth 1 -type d | head -1)"
   fi
   if [ ! -d "$SRC_DIR" ]; then
-    echo "[错误] 归档结构异常，未找到顶层目录。"
+    echo "[错误] 归档结构异常,未找到顶层目录."
     exit 1
   fi
   echo "      归档顶层: $SRC_DIR"
 
   # 拷贝代码（保留已存在的 data/ 和 .env）
+  #
+  # 重要：归档里可能含 deploy.sh，直接拷贝会覆盖「正在执行的脚本自身」。
+  # bash 是边读边执行的，文件被替换后读取位置会错乱，导致运行到一半报
+  # "syntax error near unexpected token" 之类的假错误。
+  # 因此先把归档里的 deploy.sh 挪到别处，脚本跑完再由用户决定是否替换。
+  if [ -f "$SRC_DIR/deploy.sh" ]; then
+    mv "$SRC_DIR/deploy.sh" "$SRC_DIR/deploy.sh.new" 2>/dev/null || true
+    echo "      已隔离归档内的 deploy.sh(避免覆盖执行中的脚本)"
+  fi
+
   cp -a "$SRC_DIR"/. ./
   rm -rf ./_extract
   echo "      代码已就位"
@@ -163,14 +214,14 @@ if [ -n "$DATA_TGZ" ]; then
   # 数据包里是 data/ 目录结构，会覆盖上面的空目录
   echo "      数据已恢复"
 else
-  echo "      未找到数据归档，将全新部署（需在后台手动上传 ROM）"
+  echo "      未找到数据归档,将全新部署(需在后台手动上传 ROM)"
   mkdir -p data
 fi
 
 # ---------- 4. 生成 .env ----------
 echo "[4/6] 配置环境变量..."
 if [ -f .env ]; then
-  echo "      .env 已存在，沿用（未做任何修改）"
+  echo "      .env 已存在,沿用(未做任何修改)"
 else
   cp .env.example .env
 
@@ -188,9 +239,9 @@ else
   sed -i "s|^PUID=.*|PUID=$MY_UID|" .env
   sed -i "s|^PGID=.*|PGID=$MY_GID|" .env
 
-  echo "      已生成 .env："
+  echo "      已生成 .env:"
   echo "        PUID=$MY_UID  PGID=$MY_GID"
-  echo "        JWT_SECRET=（已随机生成）"
+  echo "        JWT_SECRET=(已随机生成)"
   echo "        HOST_PORT=$(grep '^HOST_PORT=' .env | cut -d= -f2)"
   echo "      ⚠ 请手动修改 ADMIN_PASSWORD 和 ALLOW_REGISTER"
 fi
@@ -203,19 +254,23 @@ if [ "$CHOWN_DATA" != "never" ]; then
   MY_UID="$(id -u)"; MY_GID="$(id -g)"
   chmod -R u+rwX data 2>/dev/null || true
   chown -R "$MY_UID:$MY_GID" data 2>/dev/null \
-    || echo "      (部分文件属主修改失败，容器启动时会自动兜底修正)"
+    || echo "      (部分文件属主修改失败,容器启动时会自动兜底修正)"
   echo "      属主设为 $MY_UID:$MY_GID"
 fi
 
 # ---------- 6. 构建并启动 ----------
 echo "[6/6] 构建镜像并启动..."
-echo "      首次构建需 5-15 分钟（编译 better-sqlite3 + 构建前端），请耐心等待"
-echo ""
-docker compose up -d --build
+if [ "$SKIP_BUILD" = "1" ]; then
+  echo "      SKIP_BUILD=1,跳过构建(调试用)"
+else
+  echo "      首次构建需 5-15 分钟(编译 better-sqlite3 + 构建前端),请耐心等待"
+  echo ""
+  docker compose up -d --build
+fi
 
 echo ""
 echo "=============================================="
-echo " 部署完成！"
+echo " 部署完成!"
 echo "=============================================="
 PORT="$(grep '^HOST_PORT=' .env | cut -d= -f2)"
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
@@ -233,5 +288,5 @@ if curl -fsS "http://127.0.0.1:${PORT:-30000}/api/health" 2>/dev/null; then
   echo " ✓ 服务健康检查通过"
 else
   echo ""
-  echo " ⚠ 健康检查未通过，请查看日志: docker compose logs --tail=50"
+  echo " ⚠ 健康检查未通过,请查看日志: docker compose logs --tail=50"
 fi
