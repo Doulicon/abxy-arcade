@@ -27,7 +27,16 @@
 └─────────────────────────────────────────────┘
 ```
 
-**代码从哪来**：NAS 上 `git clone` Gitea 仓库 → 本地构建镜像 → compose 启动。
+**代码从哪来**：Gitea 下载归档包 → NAS 上解压 → 本地构建镜像 → compose 启动。
+
+**三种方式任选**：
+
+| 方式 | 操作 | 优点 | 缺点 |
+|---|---|---|---|
+| **A. 归档包 + 一键脚本**（推荐） | 下载 zip + 数据包 → 传 NAS → `./deploy.sh` | 不用折腾 NAS 的 git，一条命令搞定 | 后续更新要重新下载包 |
+| B. NAS 上 git clone | 修好 git 后 clone | 后续可 `git pull` 更新 | 飞牛 git 有坑，要先修 |
+| C. 免 git 直接下载 | `curl -u` 下载归档解压 | 最少命令 | 同 A，仍需重新下载更新 |
+
 **数据怎么来**：从本机导出的数据包恢复到 `data/` 目录（保留现有用户、游戏、系列配置）。
 
 ---
@@ -58,7 +67,7 @@ id
 ```bash
 # 飞牛 fnOS（/vol1 请按你的实际存储卷调整）
 cd /vol1/1000/docker
-mkdir -p abxy-arcade/data
+mkdir -p abxy-arcade
 cd abxy-arcade
 ```
 
@@ -67,99 +76,100 @@ cd abxy-arcade
 
 ---
 
-## 阶段二：拉取代码
+## 阶段二：获取代码与数据
 
-### 2.1 先修复 Git（飞牛 fnOS 必做）
+有两条路，**推荐走路线 A**（省事，不用折腾 NAS 上的 git）。
 
-飞牛**应用中心安装的 Git** 存在已知缺陷：它的 `libexec/git-core/` 目录没有加入 PATH，
-导致 `git clone` 报错：
+### 路线 A：下载归档包 + 一键脚本（推荐）
 
-```
-git: 'remote-http' is not a git command.
-```
+#### A1. 下载代码归档
 
-**方案 A：建立软链接（推荐，改动最小）**
+**方式 1：浏览器下载（最简单）**
+
+1. 浏览器登录 Gitea：`http://192.168.0.227:30001`
+2. 打开仓库 `ABXY`
+3. 右侧边栏 → **「克隆」/「下载」** 按钮 → 选择 **下载 ZIP**
+4. 得到 `abxy-main.zip`（约 38MB）
+
+**方式 2：命令行下载（NAS 上直接下）**
 
 ```bash
-# 1. 确认 git-remote-http 的实际位置
-ls /vol1/@appcenter/git/libexec/git-core/ | grep remote
-
-# 2. 建立软链接到系统 PATH 目录（vol1 按你的存储卷调整）
-sudo ln -sf /vol1/@appcenter/git/libexec/git-core/git-remote-http  /usr/local/bin/git-remote-http
-sudo ln -sf /vol1/@appcenter/git/libexec/git-core/git-remote-https /usr/local/bin/git-remote-https
-
-# 3. 验证
-git-remote-http --help >/dev/null && echo "OK：git-remote-http 已就绪"
+cd /vol1/1000/docker/abxy-arcade
+curl -u "<Gitea用户名>:<密码或令牌>" -L -o abxy-code.zip \
+  "http://192.168.0.227:30001/Gitea/ABXY/archive/main.zip"
 ```
 
-> 如果提示 `templates not found`，再补一条：
-> ```bash
-> sudo ln -sf /vol1/@appcenter/git/share/git-core/templates /var/packages/git/target/share/git-core/templates
+#### A2. 上传两个文件到 NAS
+
+需要这两个文件（都在项目的 `release/` 输出里）：
+
+| 文件 | 大小 | 来源 |
+|---|---|---|
+| `abxy-code.zip` | ~38MB | Gitea 归档下载 |
+| `abxy-data.tar.gz` | ~27MB | 本机导出（完整迁移现有游戏数据时需要）|
+
+用**飞牛文件管理器**上传到 `/vol1/1000/docker/abxy-arcade/` 即可。
+
+> 也可从 Windows 直接传：
+> ```powershell
+> scp C:\Users\pc\WorkBuddy\enlu\abxy-data.tar.gz <用户名>@<NAS-IP>:/vol1/1000/docker/abxy-arcade/
 > ```
 
-**方案 B：底层安装系统级 Git（更彻底）**
-
-```bash
-sudo apt update
-sudo apt install -y git
-
-# 确认优先使用的是系统版
-which -a git
-git --version
-```
-
-**方案 C：临时指定执行路径（仅用于快速验证）**
-
-```bash
-GIT_EXEC_PATH=/vol1/@appcenter/git/libexec/git-core \
-  git clone http://192.168.0.227:30001/Gitea/ABXY.git .
-```
-
-### 2.2 克隆仓库
+#### A3. 执行一键部署
 
 ```bash
 cd /vol1/1000/docker/abxy-arcade
 
-# 克隆仓库
+# 解压整合包（若你用的是 abxy-bundle.tar.gz）
+tar -xzf abxy-bundle.tar.gz
+# 或单独上传的两个文件无需解压这一步
+
+chmod +x deploy.sh
+./deploy.sh
+```
+
+`deploy.sh` 会自动完成：
+
+1. 定位并解压代码归档（自动剥离 Gitea 归档的顶层 `abxy/` 目录）
+2. 解压数据包到 `./data`（会先自动备份旧数据目录）
+3. 生成 `.env`（**随机 JWT 密钥** + **自动填入你当前用户的 UID/GID**）
+4. 修正数据目录属主
+5. `docker compose up -d --build`
+6. 健康检查
+
+#### A4. 收尾
+
+脚本执行完会打印访问地址。**记得手动改两处**：
+
+```bash
+vi .env
+# ADMIN_PASSWORD=改成你自己的强密码
+# ALLOW_REGISTER=false        # 私人使用建议关闭注册
+```
+
+改完重启生效：
+
+```bash
+docker compose up -d
+```
+
+### 路线 B：在 NAS 上 git clone
+
+若想保留 git 能力（后续可 `git pull` 更新），先按文末「常见问题」里的
+**`git: 'remote-http' is not a git command`** 条目修好 Git，再执行：
+
+```bash
+cd /vol1/1000/docker/abxy-arcade
 git clone http://192.168.0.227:30001/Gitea/ABXY.git .
 ```
 
-**仓库是私有的**，会要求认证。两种方式：
-
-```bash
-# 方式 1：交互式输入 Gitea 用户名 + 密码
-#   Username: 你的 Gitea 用户名
-#   Password: 你的 Gitea 密码
-
-# 方式 2：使用 Personal Access Token（推荐，密码改了也不影响）
-#   在 Gitea 打开：右上角头像 → 设置 → 应用 → 生成令牌
-#   勾选 repo 权限，生成后复制令牌
-git clone http://<用户名>:<令牌>@192.168.0.227:30001/Gitea/ABXY.git .
-```
-
-**保存凭据免密输入**（可选）：
-
-```bash
-git config --global credential.helper store
-# 下次 clone/pull 会自动读取 ~/.git-credentials
-```
-
-克隆后目录结构：
-
-```
-/vol1/1000/docker/abxy-arcade/
-├── Dockerfile
-├── docker-compose.yml
-├── .env.example          ← 复制成 .env 后修改
-├── server/
-├── web/
-├── data/                 ← 恢复数据到这里
-└── ...
-```
+仓库是私有的，需 Gitea 用户名 + 密码或 Personal Access Token。
 
 ---
 
-## 阶段三：配置环境变量
+## 阶段三：配置环境变量（路线 B 手动执行时需要）
+
+路线 A 的 `deploy.sh` 已自动生成 `.env`，无需手动操作。若手动部署：
 
 ```bash
 cd /vol1/1000/docker/abxy-arcade
@@ -185,31 +195,14 @@ openssl rand -hex 32
 
 ---
 
-## 阶段四：恢复数据（可选，但推荐）
+## 阶段四：恢复数据（路线 B 手动执行时需要）
 
-如果是从本机迁移，要先把 `abxy-data.tar.gz` 传到 NAS。
-
-### 4.1 传输数据��
-
-**方式 A：飞牛文件管理器（最简单）**
-用浏览器登录飞牛，把 `abxy-data.tar.gz` 上传到 `/vol1/1000/docker/abxy-arcade/`。
-
-**方式 B：scp（Windows PowerShell）**
-
-```powershell
-scp C:\Users\pc\WorkBuddy\enlu\abxy-data.tar.gz \
-    <你的飞牛用户名>@192.168.0.xxx:/vol1/1000/docker/abxy-arcade/
-```
-
-> NAS 的 IP 是飞牛本机 IP（`http://192.168.0.227:30001` 是 Gitea 所在机器）。
-> 在飞牛「系统设置 → 网络」里查本机 IP。
-
-### 4.2 解压恢复
+路线 A 的 `deploy.sh` 已自动解压数据包，无需手动操作。若手动部署：
 
 ```bash
 cd /vol1/1000/docker/abxy-arcade
 
-# 解压（会覆盖同名文件）
+# 解压数据（会覆盖同名文件）
 tar -xzf abxy-data.tar.gz -C .
 
 # 修正属主，让容器内 node 用户可读写
@@ -220,14 +213,14 @@ chmod -R u+rwX data
 ls -la data/
 ```
 
-**若 NAS 上是全新部署（无旧数据），解压后 `data/` 会包含：**
+**数据包内容**：
 - `app.db` —— 用户、游戏、系列、平台配置（完整保留）
 - `roms/` `covers/` `bios/` `assets/` —— 全部游戏文件与素材
 - `.jwt-secret` —— JWT 密钥（迁移后登录态延续，不用重新登录）
 
 ---
 
-## 阶段五：构建并启动
+## 阶段五：构建并启动（路线 B 手动执行时需要）
 
 ```bash
 cd /vol1/1000/docker/abxy-arcade
@@ -260,6 +253,27 @@ docker compose ps
 ## 阶段六：日常运维
 
 ### 更新版本
+
+**路线 A（归档包方式）**：重新下载 → 覆盖代码 → 重建（`data/` 不会被动）
+
+```bash
+cd /vol1/1000/docker/abxy-arcade
+
+# 1. 重新下载最新代码（浏览器下载后上传，或用 curl）
+curl -u "<Gitea用户名>:<密码或令牌>" -L -o abxy-code.zip \
+  "http://192.168.0.227:30001/Gitea/ABXY/archive/main.zip"
+
+# 2. 只覆盖代码部分，保留 data/ 和 .env
+mkdir -p _x && unzip -qo abxy-code.zip -d _x && cp -a _x/abxy/. ./ && rm -rf _x
+
+# 3. 重新构建并重启（数据目录不受影响）
+docker compose up -d --build
+
+# 4. 清理旧镜像
+docker image prune -f
+```
+
+**路线 B（git 方式）**
 
 ```bash
 cd /vol1/1000/docker/abxy-arcade
@@ -314,7 +328,7 @@ docker compose start
 ### git: 'remote-http' is not a git command
 
 飞牛 fnOS 应用中心安装的 Git 缺少 PATH 配置，`git-remote-http` 找不到。
-**解决办法见 [阶段二 2.1](#21-先修复-git飞牛-fnos-必做)**，最常用的是建软链接：
+**解决办法**（最常用的是建软链接，把 git 的 HTTP 助手加回 PATH）：
 
 ```bash
 sudo ln -sf /vol1/@appcenter/git/libexec/git-core/git-remote-http  /usr/local/bin/git-remote-http
