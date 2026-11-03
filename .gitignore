@@ -7,3 +7,5 @@ data/
 .env
 .env.local
 .workbuddy/
+release-data/
+abxy-data.tar.gz

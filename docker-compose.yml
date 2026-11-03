@@ -1,3 +1,12 @@
+# ABXY ARCADE —— 部署配置（适配 NAS：飞牛 fnOS / 群晖 / 威联通 / Unraid / 普通 Linux）
+#
+# 用法：
+#   1) cp .env.example .env  并按需修改（务必改 JWT_SECRET）
+#   2) docker compose up -d --build
+#   3) docker compose logs -f abxy-arcade
+#
+# 敏感配置全部放在同目录 .env 文件里，不要直接写进本文件。
+
 services:
   abxy-arcade:
     build:
@@ -6,21 +15,33 @@ services:
     image: abxy-arcade:latest
     container_name: abxy-arcade
     ports:
-      - "3000:3000"
+      # 左边是 NAS 上的端口，右边是容器内端口（固定 3000）
+      # 如与 NAS 上已有服务冲突，改成 "8080:3000" 之类即可
+      - "${HOST_PORT:-3000}:3000"
     environment:
       PORT: "3000"
       DATA_DIR: /data
-      # 生产环境请改成随机长字符串，修改后所有已登录用户需要重新登录
-      JWT_SECRET: "please-change-this-secret-in-production"
+      TZ: "${TZ:-Asia/Shanghai}"
+      # 运行身份：飞牛 fnOS 默认 1000:1001；群晖/威联通常用 1026:100 或 1000:100
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1001}"
+      # 权限修正策略：auto(仅不可写时递归修正) / always / never
+      CHOWN_DATA: "${CHOWN_DATA:-auto}"
+      # 生产环境务必在 .env 里改成随机长字符串
+      # 修改后所有已登录用户需要重新登录
+      JWT_SECRET: "${JWT_SECRET:-please-change-this-secret-in-production}"
       # 首次启动时自动创建的管理员账号（已存在则忽略）
-      ADMIN_USERNAME: "admin"
-      ADMIN_PASSWORD: "admin123"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin123}"
       # 是否开放普通用户注册
-      ALLOW_REGISTER: "true"
-      # 模拟器内核 CDN，国内可换成自建镜像地址
+      ALLOW_REGISTER: "${ALLOW_REGISTER:-true}"
+      # 模拟器内核 CDN。仓库已自带 EmulatorJS 运行时，默认同源加载、不依赖外网；
+      # 若 /data 下缺少内核文件，可取消注释改用官方 CDN
       # EMULATOR_CDN: "https://cdn.emulatorjs.org/stable/data/"
     volumes:
-      - ./data:/data
+      # 数据卷：数据库、ROM、封面、BIOS 全部存放于此，务必指向 NAS 的大容量存储池
+      # 相对路径会基于本 compose 文件所在目录解析
+      - "${DATA_PATH:-./data}:/data"
     restart: unless-stopped
     healthcheck:
       test:
