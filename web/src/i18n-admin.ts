@@ -151,7 +151,7 @@ export const SYS_ADMIN: Record<string, Record<string, string>> = {
     'admin.toast.biosUploadFail': 'BIOS 上传失败',
 
     'assets.intro':
-      '这里管理网站所有静态图片。按槽位上传即可替换，支持 PNG / JPG / WebP / GIF，也可以直接填外链；点「恢复默认」会回到内置像素风占位。建议按标注尺寸出图，深色背景与霓虹配色最协调。',
+      '这里管理网站所有静态图片。按槽位上传即可替换，支持 PNG / JPG / WebP / GIF，也可以直接填外链。平台分区图已内置像素插画，不动就是默认样式；点「恢复默认」会退回内置图。建议按标注尺寸出图，深色背景与霓虹配色最协调。',
     'assets.group.home': '首页',
     'assets.group.platform': '平台分区',
     'assets.group.common': '通用',

@@ -1,4 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { PLATFORMS, PLATFORM_MAP } from './platforms.js';
+import { PLATFORM_ART_DIR } from './config.js';
 
 /**
  * 站点静态图片槽位。key 固定，前端按 key 取图，后台按 key 上传替换。
@@ -49,12 +52,26 @@ const BASE_SLOTS = [
   },
 ];
 
+/**
+ * 平台默认插画：随仓库分发的 1:1 像素图（server/public/platform-art/<id>.png）。
+ * 后台上传会写进 site_assets 覆盖它；删除记录即回退到这里的默认图，所以玩家永远有图看。
+ */
+const PLATFORM_ART_DEFAULTS = Object.fromEntries(
+  PLATFORMS.map((p) => {
+    const file = path.join(PLATFORM_ART_DIR, `${p.id}.png`);
+    return [`platform_${p.id}`, fs.existsSync(file) ? `/platform-art/${p.id}.png` : ''];
+  }).filter(([, url]) => url),
+);
+
+/** key → 内置默认图地址；没有默认图的槽位不会出现在这里 */
+export const ASSET_DEFAULTS = PLATFORM_ART_DEFAULTS;
+
 const PLATFORM_SLOTS = PLATFORMS.map((p) => ({
   key: `platform_${p.id}`,
   label: `${p.name} 平台图`,
   group: '平台分区',
-  ratio: '640 × 400',
-  hint: '首页平台卡片的头图（16:10 最佳），留空则显示平台配色的像素方块',
+  ratio: '1 : 1',
+  hint: '首页平台卡片的头图，正方形最佳（建议 600 × 600）。默认已内置像素插画，上传后即替换，清空则恢复默认',
 }));
 
 export const ASSET_SLOTS = [...BASE_SLOTS, ...PLATFORM_SLOTS];

@@ -103,7 +103,7 @@ export default function AdminAssets() {
     setBusyKey(slot.key);
     try {
       await api.del(`/admin/assets/${slot.key}`);
-      setSlots((prev) => prev.map((s) => (s.key === slot.key ? { ...s, url: '' } : s)));
+      // 不手动置空：reload 会拿回后端回退后的默认图，避免预览闪一下空白
       await reload();
       toast(t('assets.toast.restored', { label: slotLabel(slot) }), 'info');
     } catch (e: any) {
@@ -153,7 +153,11 @@ export default function AdminAssets() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {items.map((slot) => (
               <div key={slot.key} className="flex flex-col border-2 border-line bg-panel">
-                <div className="relative aspect-[16/9] overflow-hidden border-b-2 border-line bg-[#04101f]">
+                <div
+                  className={`relative overflow-hidden border-b-2 border-line bg-[#04101f] ${
+                    slot.key.startsWith('platform_') ? 'aspect-square' : 'aspect-[16/9]'
+                  }`}
+                >
                   {slot.url ? (
                     <img src={slot.url} alt={slotLabel(slot)} className="h-full w-full object-contain" />
                   ) : (
@@ -161,6 +165,11 @@ export default function AdminAssets() {
                       <IconImage className="h-6 w-6" />
                       <span className="text-[10px]">{t('assets.unset')}</span>
                     </div>
+                  )}
+                  {slot.isDefault && (
+                    <span className="absolute left-1.5 top-1.5 border border-neon/50 bg-black/75 px-1.5 py-0.5 text-[9px] font-bold text-neon">
+                      默认图
+                    </span>
                   )}
                   {busyKey === slot.key && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/60">
@@ -197,12 +206,14 @@ export default function AdminAssets() {
                       disabled={busyKey === slot.key}
                       onClick={() => {
                         setEditing(slot);
-                        setUrlValue(slot.url.startsWith('/uploads') ? '' : slot.url);
+                        // 外链编辑框只回填「自定义」地址，内置默认图不参与编辑
+                        const custom = slot.custom || '';
+                        setUrlValue(custom.startsWith('/uploads') ? '' : custom);
                       }}
                     >
                       {t('assets.url')}
                     </button>
-                    {slot.url && (
+                    {slot.custom && (
                       <button
                         className="flex h-7 items-center gap-1 border border-line px-2 text-[11px] font-bold text-muted transition-colors hover:border-[#ff5b7f] hover:text-[#ff5b7f]"
                         disabled={busyKey === slot.key}

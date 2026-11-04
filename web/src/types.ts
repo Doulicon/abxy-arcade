@@ -141,7 +141,14 @@ export type AssetSlot = {
   group: string;
   ratio: string;
   hint: string;
+  /** 预览地址：自定义优先，没有自定义时是内置默认图 */
   url: string;
+  /** 后台上传的地址，空串表示未自定义 */
+  custom?: string;
+  /** 当前展示的是项目内置默认图 */
+  isDefault?: boolean;
+  /** 该槽位是否自带默认图（清空后能回退） */
+  hasDefault?: boolean;
   updatedAt: string;
 };
 

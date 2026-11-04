@@ -1,7 +1,7 @@
 import path from 'node:path';
 import express from 'express';
 import { db, ASSET_DIR } from '../db.js';
-import { ASSET_SLOTS, ASSET_KEYS, SLOT_MAP } from '../assets.js';
+import { ASSET_SLOTS, ASSET_KEYS, SLOT_MAP, ASSET_DEFAULTS } from '../assets.js';
 import { adminRequired } from '../auth.js';
 import { imageUpload, moveAsset, removeFileQuietly, cleanupTmp } from '../upload.js';
 
@@ -11,22 +11,36 @@ function rowsByKey() {
   return new Map(db.prepare('SELECT key, url, alt, updated_at FROM site_assets').all().map((r) => [r.key, r]));
 }
 
-/** 公共：前台取图（只返回已设置的槽位，未设置为空由前端兜底） */
+/**
+ * 公共：前台取图。
+ * 先取后台上传的覆盖值，没有则回退内置默认图（平台插画已随项目分发），
+ * 两者都没有的槽位不返回，由前端走像素占位。
+ */
 router.get('/assets', (_req, res) => {
-  const map = {};
+  const map = { ...ASSET_DEFAULTS };
   for (const [key, row] of rowsByKey()) {
     if (row.url) map[key] = row.url;
   }
   res.json({ assets: map });
 });
 
-/** 后台：列出全部槽位与当前图 */
+/** 后台：列出全部槽位与当前图，并标记当前是内置默认还是自定义 */
 router.get('/admin/assets', adminRequired, (_req, res) => {
   const rows = rowsByKey();
   res.json({
     items: ASSET_SLOTS.map((slot) => {
       const row = rows.get(slot.key);
-      return { ...slot, url: row?.url || '', updatedAt: row?.updated_at || '' };
+      const custom = row?.url || '';
+      const fallback = ASSET_DEFAULTS[slot.key] || '';
+      return {
+        ...slot,
+        // url 给预览用：自定义优先，否则展示内置默认图
+        url: custom || fallback,
+        custom,
+        isDefault: !custom && Boolean(fallback),
+        hasDefault: Boolean(fallback),
+        updatedAt: row?.updated_at || '',
+      };
     }),
   });
 });

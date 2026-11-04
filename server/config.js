@@ -43,5 +43,8 @@ export const ALLOW_REGISTER = process.env.ALLOW_REGISTER !== 'false';
 export const EMULATOR_DIR = path.join(ROOT_DIR, 'server', 'public', 'emulatorjs');
 export const EMULATOR_LOCAL_READY = fs.existsSync(path.join(EMULATOR_DIR, 'loader.js'));
 
+/** 随仓库分发的平台默认素材图（1:1 像素插画）；后台「站点素材」上传后覆盖，删除则回退这里 */
+export const PLATFORM_ART_DIR = path.join(__dirname, 'public', 'platform-art');
+
 export const EMULATOR_CDN =
   process.env.EMULATOR_CDN || (EMULATOR_LOCAL_READY ? '/emulatorjs/' : 'https://cdn.emulatorjs.org/stable/data/');

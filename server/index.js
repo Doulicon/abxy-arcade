@@ -3,7 +3,7 @@ import path from 'node:path';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import multer from 'multer';
-import { PORT, ROOT_DIR, ADMIN_USERNAME, ADMIN_PASSWORD, ALLOW_REGISTER, EMULATOR_CDN, EMULATOR_DIR, EMULATOR_LOCAL_READY } from './config.js';
+import { PORT, ROOT_DIR, ADMIN_USERNAME, ADMIN_PASSWORD, ALLOW_REGISTER, EMULATOR_CDN, EMULATOR_DIR, EMULATOR_LOCAL_READY, PLATFORM_ART_DIR } from './config.js';
 import { db, BIOS_DIR, COVER_DIR, ASSET_DIR, ensureAdmin, migrateLegacyPlatformIds } from './db.js';
 import { optionalAuth } from './auth.js';
 import { safeBiosName } from './upload.js';
@@ -41,6 +41,12 @@ app.use(
 app.use(
   '/uploads/assets',
   express.static(ASSET_DIR, { maxAge: '30d', immutable: true, fallthrough: true, index: false }),
+);
+
+// 内置平台默认图：随项目分发，后台未上传时前台直接用它们；用户上传后由 site_assets 覆盖
+app.use(
+  '/platform-art',
+  express.static(PLATFORM_ART_DIR, { maxAge: '7d', fallthrough: true, index: false }),
 );
 
 // EmulatorJS 运行时：本地同源托管，避免浏览器走系统代理导致 CDN 加载失败
