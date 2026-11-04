@@ -3,6 +3,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import { DATA_DIR, ROM_DIR, COVER_DIR, BIOS_DIR, ASSET_DIR, ADMIN_USERNAME, ADMIN_PASSWORD } from './config.js';
+import { LEGACY_PLATFORM_IDS } from './platforms.js';
 
 export { ROM_DIR, COVER_DIR, BIOS_DIR, ASSET_DIR };
 fs.mkdirSync(ROM_DIR, { recursive: true });
@@ -147,6 +148,69 @@ db.prepare(
       SET value = REPLACE(REPLACE(value, 'ENLU ARCADE', 'ABXY ARCADE'), 'ZXCV ARCADE', 'ABXY ARCADE')
     WHERE value LIKE '%ENLU ARCADE%' OR value LIKE '%ZXCV ARCADE%'`,
 ).run();
+
+/**
+ * 平台 id 改名迁移：nes → fc、snes → sfc。
+ *
+ * 早期版本平台 id 直接沿用 EmulatorJS 的系统名（nes/snes），后来统一成显示简称（fc/sfc）。
+ * 老库里 games.platform 等字段仍挂着旧 id，不迁移的话新代码会把它们当成「未知平台」，
+ * 表现为首页/游戏库里 FC 分区一条游戏都没有。这里一次性改写所有相关表（幂等）。
+ */
+export function migrateLegacyPlatformIds() {
+  const pairs = Object.entries(LEGACY_PLATFORM_IDS);
+  let changed = 0;
+
+  const run = db.transaction(() => {
+    for (const [oldId, newId] of pairs) {
+      // 游戏所属平台
+      changed += db.prepare('UPDATE games SET platform = ? WHERE platform = ?').run(newId, oldId).changes;
+
+      // 系列指定平台（空串表示不限）
+      changed += db.prepare('UPDATE series SET platform = ? WHERE platform = ?').run(newId, oldId).changes;
+
+      // 平台权重：platform_id 是主键，新旧同时存在时保留新 id 的记录，丢弃旧记录
+      const wNew = db.prepare('SELECT 1 FROM platform_weights WHERE platform_id = ?').get(newId);
+      if (wNew) {
+        db.prepare('DELETE FROM platform_weights WHERE platform_id = ?').run(oldId);
+      } else {
+        changed += db.prepare('UPDATE platform_weights SET platform_id = ? WHERE platform_id = ?').run(newId, oldId).changes;
+      }
+
+      // 站点素材槽位（platform_<id>）：同上，key 是主键
+      for (const prefix of ['platform_']) {
+        const oldKey = `${prefix}${oldId}`;
+        const newKey = `${prefix}${newId}`;
+        if (!db.prepare('SELECT 1 FROM site_assets WHERE key = ?').get(oldKey)) continue;
+        if (db.prepare('SELECT 1 FROM site_assets WHERE key = ?').get(newKey)) {
+          db.prepare('DELETE FROM site_assets WHERE key = ?').run(oldKey);
+        } else {
+          changed += db.prepare('UPDATE site_assets SET key = ? WHERE key = ?').run(newKey, oldKey).changes;
+        }
+      }
+
+      // 站点文案 key：platform.<id>.<field>，主键是 (locale, key)
+      const textRows = db
+        .prepare("SELECT locale, key FROM site_texts WHERE key LIKE ?")
+        .all(`platform.${oldId}.%`);
+      for (const row of textRows) {
+        const newKey = row.key.replace(`platform.${oldId}.`, `platform.${newId}.`);
+        const clash = db
+          .prepare('SELECT 1 FROM site_texts WHERE locale = ? AND key = ?')
+          .get(row.locale, newKey);
+        if (clash) {
+          db.prepare('DELETE FROM site_texts WHERE locale = ? AND key = ?').run(row.locale, row.key);
+        } else {
+          changed += db
+            .prepare('UPDATE site_texts SET key = ? WHERE locale = ? AND key = ?')
+            .run(newKey, row.locale, row.key).changes;
+        }
+      }
+    }
+  });
+
+  run();
+  return changed;
+}
 
 /** 首次启动创建管理员账号 */
 export function ensureAdmin() {

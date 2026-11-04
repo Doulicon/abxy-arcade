@@ -4,7 +4,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import multer from 'multer';
 import { PORT, ROOT_DIR, ADMIN_USERNAME, ADMIN_PASSWORD, ALLOW_REGISTER, EMULATOR_CDN, EMULATOR_DIR, EMULATOR_LOCAL_READY } from './config.js';
-import { db, BIOS_DIR, COVER_DIR, ASSET_DIR, ensureAdmin } from './db.js';
+import { db, BIOS_DIR, COVER_DIR, ASSET_DIR, ensureAdmin, migrateLegacyPlatformIds } from './db.js';
 import { optionalAuth } from './auth.js';
 import { safeBiosName } from './upload.js';
 import { ensureRomLayout, migrateRomLayout } from './roms.js';
@@ -129,6 +129,9 @@ app.use((err, _req, res, _next) => {
 });
 
 const created = ensureAdmin();
+// 平台 id 改名迁移（nes → fc、snes → sfc）：必须早于任何按平台查询的逻辑
+const migrated = migrateLegacyPlatformIds();
+if (migrated) console.log(`  ▸ 平台 id 迁移完成：${migrated} 条记录已更新为 fc / sfc`);
 // ROM 资源按平台分目录：data/roms/<平台 id>/（含 resources 子目录），老数据自动归位
 ensureRomLayout();
 migrateRomLayout((msg) => console.log(`  ▸ ${msg}`));

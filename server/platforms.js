@@ -111,6 +111,13 @@ export const PLATFORMS = [
 
 export const PLATFORM_MAP = new Map(PLATFORMS.map((p) => [p.id, p]));
 
+/**
+ * 历史平台 id → 现行 id。
+ * 早期版本平台 id 用 EmulatorJS 系统名（nes/snes），后来统一为显示简称（fc/sfc）。
+ * 老库里的 games.platform、series.platform、平台权重、素材槽、文案 key 以及磁盘上的 ROM 目录都需要据此迁移。
+ */
+export const LEGACY_PLATFORM_IDS = { nes: 'fc', snes: 'sfc' };
+
 export const ROM_EXTS = new Set(PLATFORMS.flatMap((p) => p.exts));
 
 /** 扩展名 → 平台 id（同一后缀对应多个平台时取先出现的那个） */

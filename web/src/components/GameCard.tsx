@@ -46,18 +46,25 @@ export function GameCard({ game, index = 0 }: { game: Game; index?: number }) {
             )}
           </div>
 
-          {/* 平台标签：移到图片右下角，字号比原来大一档 */}
-          <span
-            className="platform-badge"
-            style={{
-              color: game.platformColor,
-              borderColor: `${game.platformColor}80`,
-              background: 'rgba(4,10,24,.86)',
-              textShadow: `0 0 8px ${game.platformColor}55`,
-            }}
-          >
-            {game.platformShort}
-          </span>
+          {/* 封面右下角：游戏类型标签 + 平台标签并排 */}
+          <div className="badge-row">
+            {genres.length > 0 && (
+              <span className="genre-badge" title={game.genre}>
+                {genres[0]}
+              </span>
+            )}
+            <span
+              className="platform-badge"
+              style={{
+                color: game.platformColor,
+                borderColor: `${game.platformColor}80`,
+                background: 'rgba(4,10,24,.86)',
+                textShadow: `0 0 8px ${game.platformColor}55`,
+              }}
+            >
+              {game.platformShort}
+            </span>
+          </div>
 
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="px-btn-shape flex h-10 w-10 translate-y-2 items-center justify-center border-2 border-neon bg-neon/90 text-[#04101f] opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">

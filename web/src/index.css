@@ -411,9 +411,27 @@ textarea {
     color: #a8ddf9;
   }
 
-  /* 图片右下角的平台标签（NES / ARCADE / NEOGEO…） */
+  /* 图片右下角的平台标签（FC / ARCADE / NEOGEO…） */
   .platform-badge {
     @apply absolute bottom-1.5 right-1.5 inline-flex items-center border px-1.5 py-1 font-pixel text-[10px] leading-none tracking-wide;
+  }
+
+  /* 右下角标签组：类型标签 + 平台标签并排，避免互相重叠 */
+  .badge-row {
+    @apply absolute bottom-1.5 right-1.5 flex items-center gap-1;
+  }
+  /* 组内的平台标签交给父容器定位，不再各自绝对定位 */
+  .badge-row .platform-badge {
+    @apply static;
+  }
+
+  /* 封面上的游戏类型标签（动作 / 射击 / RPG…） */
+  .genre-badge {
+    @apply inline-flex max-w-[72px] items-center truncate border px-1.5 py-1 font-pixel text-[9px] leading-none tracking-wide;
+    border-color: rgba(76, 201, 255, 0.5);
+    background: rgba(4, 10, 24, 0.86);
+    color: #a8ddf9;
+    text-shadow: 0 0 8px rgba(76, 201, 255, 0.35);
   }
 
   /* 首页平台分区：5 列，卡片最大尺寸随视口高度收缩，保证两行能整屏放下 */
@@ -830,6 +848,14 @@ html[data-theme='light'] .genre-chip {
   border-color: rgba(10, 111, 168, 0.4) !important;
   background: rgba(76, 201, 255, 0.16) !important;
   color: #0a5f8f !important;
+}
+
+/* 封面类型标签：浅色主题下改成白底深字，压在图片上也看得清 */
+html[data-theme='light'] .genre-badge {
+  border-color: rgba(10, 111, 168, 0.45) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #0a5f8f !important;
+  text-shadow: none !important;
 }
 
 /* 危险按钮：浅粉字在白底上太淡 */
