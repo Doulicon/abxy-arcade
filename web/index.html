@@ -8,9 +8,11 @@
     <title>ABXY ARCADE · 像素复古游戏厅</title>
     <!-- 字体全部本地化，避免依赖 Google Fonts（代理/断网环境会加载失败） -->
     <link rel="preload" href="/fonts/press-start-2p.woff2" as="font" type="font/woff2" crossorigin />
-    <!-- 站点标识：同一张 GBA 图标，favicon / iOS 主屏图标 / 导航栏 logo 共用一套视觉 -->
-    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <!-- 站点标识：同一张 NEOGEO 街机柜图标，favicon / iOS 主屏图标 / 导航栏 logo 共用一套视觉。
+         favicon 是透明底 PNG，不自带任何背景色，由浏览器标签页自己决定底色。
+         末尾 ?v= 用于强制刷新浏览器缓存的旧图标。 -->
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon.png?v=2" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
   </head>
   <body>
     <div id="root"></div>
