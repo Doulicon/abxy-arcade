@@ -315,6 +315,9 @@ chmod +x scripts/update.sh   # 首次需要
 ./scripts/update.sh
 ```
 
+> 群晖 / 威联通等 NAS 上 Docker 守护进程只对 root 开放，请用 `sudo bash scripts/update.sh`。
+> 脚本会自动给 docker 命令补 `sudo`，并在拉取完成后把 `.git` 属主交还给 `$SUDO_USER`，后续普通用户也能继续 `git pull`。
+
 脚本做的事：备份 `data/`（跳过体积大的 `roms/`）→ `git pull --ff-only` → 重建镜像 → 滚动重启 → 健康检查。
 
 可选参数：
@@ -327,11 +330,11 @@ chmod +x scripts/update.sh   # 首次需要
 手动步骤（不用脚本时等价于）：
 
 ```bash
-docker compose stop                       # 1. 停服务，让 SQLite 落盘
-tar -czf abxy-backup-$(date +%F).tar.gz data/   # 2. 备份
-git pull origin main                      # 3. 取新代码
-docker compose up -d --build              # 4. 重建并启动
-docker compose logs -f --tail=50          # 5. 看日志确认
+sudo docker compose stop                   # 1. 停服务，让 SQLite 落盘
+sudo tar -czf abxy-backup-$(date +%F).tar.gz data/   # 2. 备份
+git pull origin main                       # 3. 取新代码
+sudo docker compose up -d --build          # 4. 重建并启动
+sudo docker compose logs -f --tail=50      # 5. 看日志确认
 ```
 
 **线上不停机版本**：`build` 阶段旧容器仍在服务，只在最后 `up -d` 切一刀，停机约 1~2 秒。

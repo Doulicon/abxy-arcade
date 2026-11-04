@@ -39,11 +39,23 @@ fi
 DATA_DIR="${DATA_PATH:-./data}"
 HOST_PORT="${HOST_PORT:-30000}"
 
+# ---- 选择 docker 命令（群晖 / NAS 上 docker 守护进程通常只对 root 开放） ----
+DOCKER="docker"
+if ! docker info >/dev/null 2>&1 && [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+  DOCKER="sudo docker"
+fi
+if ! $DOCKER info >/dev/null 2>&1; then
+  echo "[错误] 当前用户无法访问 Docker 守护进程。" >&2
+  echo "       请改用：sudo bash scripts/update.sh" >&2
+  exit 1
+fi
+
 # ---- 选择 compose 命令（兼容新版插件与旧版独立二进制） ----
-if docker compose version >/dev/null 2>&1; then
-  DC="docker compose"
+if $DOCKER compose version >/dev/null 2>&1; then
+  DC="$DOCKER compose"
 elif command -v docker-compose >/dev/null 2>&1; then
   DC="docker-compose"
+  [ "$DOCKER" = "sudo docker" ] && DC="sudo docker-compose"
 else
   echo "[错误] 未找到 docker compose，请先安装 Docker Compose" >&2
   exit 1
@@ -84,23 +96,31 @@ else
 fi
 
 # ---- 2. 取新代码 ----
+# 用 sudo 运行时 Git 会因仓库属主与当前用户不同而报 dubious ownership，
+# 统一用 -c safe.directory 规避，不去改全局配置。
+gitc() { git -c safe.directory="$ROOT" "$@"; }
+
 if [ "$PULL" = 1 ]; then
-  if [ -d .git ]; then
+  if [ -d .git ] && gitc rev-parse --git-dir >/dev/null 2>&1; then
     echo "[2/5] 拉取最新代码..."
-    git rev-parse --abbrev-ref HEAD | grep -qx main || echo "      [提示] 当前不在 main 分支"
+    gitc rev-parse --abbrev-ref HEAD | grep -qx main || echo "      [提示] 当前不在 main 分支"
     # 本地有未提交改动时先停下，避免 merge 冲突弄坏工作区
-    if [ -n "$(git status --porcelain)" ]; then
+    if [ -n "$(gitc status --porcelain)" ]; then
       echo "      [错误] 工作区有未提交改动，请先处理：" >&2
-      git status --short >&2
+      gitc status --short >&2
       exit 1
     fi
-    BEFORE="$(git rev-parse --short HEAD)"
-    git pull --ff-only origin main
-    AFTER="$(git rev-parse --short HEAD)"
+    BEFORE="$(gitc rev-parse --short HEAD)"
+    gitc pull --ff-only origin main
+    AFTER="$(gitc rev-parse --short HEAD)"
     if [ "$BEFORE" = "$AFTER" ]; then
       echo "      已是最新版本 ($AFTER)"
     else
       echo "      已更新 $BEFORE -> $AFTER"
+    fi
+    # sudo 拉取会产生 root 属主的 .git，交还给调用者，避免下次普通用户 git 报权限错误
+    if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+      chown -R "$SUDO_USER": .git 2>/dev/null || true
     fi
   else
     echo "[2/5] 未检测到 .git，跳过程序拉取（请确认新代码已覆盖到本目录）"
@@ -115,7 +135,17 @@ $DC build
 
 # ---- 4. 滚动重启 ----
 echo "[4/5] 切换到新版本..."
-$DC up -d --remove-orphans
+if ! $DC up -d --remove-orphans; then
+  # 常见于旧容器是手工 docker run 起的，compose 认不出它的归属，只报名字冲突
+  if $DOCKER ps -a --format '{{.Names}}' | grep -qx 'abxy-arcade'; then
+    echo "      [提示] 容器名冲突，移除旧容器后重试（data 是 bind mount，不受影响）..."
+    $DOCKER rm -f abxy-arcade
+    $DC up -d --remove-orphans
+  else
+    echo "[错误] 启动失败，请查看：$DC logs --tail=50" >&2
+    exit 1
+  fi
+fi
 
 # ---- 5. 健康检查 ----
 echo "[5/5] 等待服务就绪..."
