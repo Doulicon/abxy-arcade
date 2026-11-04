@@ -59,7 +59,15 @@ const BASE_SLOTS = [
 const PLATFORM_ART_DEFAULTS = Object.fromEntries(
   PLATFORMS.map((p) => {
     const file = path.join(PLATFORM_ART_DIR, `${p.id}.png`);
-    return [`platform_${p.id}`, fs.existsSync(file) ? `/platform-art/${p.id}.png` : ''];
+    if (!fs.existsSync(file)) return [`platform_${p.id}`, ''];
+    // 静态图缓存 7 天，带一个基于文件修改时间的版本号，换图后浏览器才会重新取
+    let v = '';
+    try {
+      v = `?v=${Math.round(fs.statSync(file).mtimeMs).toString(36)}`;
+    } catch {
+      /* 取不到 mtime 就退回无参地址 */
+    }
+    return [`platform_${p.id}`, `/platform-art/${p.id}.png${v}`];
   }).filter(([, url]) => url),
 );
 
