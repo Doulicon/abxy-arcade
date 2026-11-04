@@ -61,6 +61,11 @@ export function PlatformCard({ platform }: { platform: PlatformCardData }) {
           )}
 
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 to-transparent opacity-70" />
+
+          {/* 游戏数量：右下角标签，0 款不显示，完全不占文字区 */}
+          {count > 0 && (
+            <span className="count-badge">{t('platform.gamesBadge', { n: count })}</span>
+          )}
         </div>
 
         <div className="card-body card-body--platform">
@@ -78,17 +83,6 @@ export function PlatformCard({ platform }: { platform: PlatformCardData }) {
 
           {/* 简介：左对齐，字号只比名称小一档，颜色与名称一致 */}
           <p className="card-desc card-desc--platform mt-1.5 text-white">{desc}</p>
-
-          {/* 游戏数量：有游戏显示数量，无游戏显示「暂无游戏」 */}
-          <span
-            className={`mt-1.5 inline-block w-fit border px-1.5 py-0.5 font-pixel text-[8px] leading-none ${
-              count > 0
-                ? 'border-white/15 bg-black/30 text-white/60'
-                : 'border-line bg-white/[0.03] text-white/35'
-            }`}
-          >
-            {count > 0 ? t('library.count', { n: count }) : t('platform.noGames')}
-          </span>
 
           {/* 底行：年份方框居左，厂商居右，同一行不再多占高度 */}
           <div className="mt-auto flex items-end justify-between gap-2">
