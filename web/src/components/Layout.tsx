@@ -37,11 +37,11 @@ function Logo() {
         />
       ) : (
         <>
-          {/* 站点标识：GBA 素材包图标（透明底，深色导航栏直接压上去即可） */}
+          {/* 站点标识：NEOGEO 街机柜素材（透明底，竖构图，比文字块高一点压住视线） */}
           <img
             src="/brand/logo-mark.png"
             alt={tx('brand.name') || 'ABXY ARCADE'}
-            className="pixel-img h-9 w-auto shrink-0 object-contain"
+            className="pixel-img h-12 w-auto shrink-0 object-contain"
           />
           <span className="hidden flex-col leading-none sm:flex">
             <span className="font-pixel text-[11px] tracking-tight text-white">
