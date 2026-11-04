@@ -434,13 +434,12 @@ textarea {
     text-shadow: 0 0 8px rgba(76, 201, 255, 0.35);
   }
 
-  /* 平台卡片右下角的游戏数量标签：不占文字区高度，压在封面右下角 */
+  /* 平台卡片右下角的游戏数量标签：不占文字区高度，压在封面右下角。
+     配色风格对齐年份标签（2px 描边 + 像素投影），颜色由组件按平台主题色注入。 */
   .count-badge {
-    @apply absolute bottom-1.5 right-1.5 z-10 inline-flex items-center border px-1.5 py-1 font-pixel text-[10px] leading-none tracking-wide;
-    border-color: rgba(255, 255, 255, 0.28);
-    background: rgba(4, 10, 24, 0.86);
-    color: #ffffff;
-    text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+    @apply absolute bottom-1.5 right-1.5 z-10 inline-flex items-center border-2 px-1.5 py-0.5 font-pixel text-[10px] leading-none tracking-wide;
+    background: rgba(4, 10, 24, 0.82);
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.55);
   }
 
   /* 首页平台分区：5 列，卡片最大尺寸随视口高度收缩，保证两行能整屏放下 */
@@ -867,13 +866,8 @@ html[data-theme='light'] .genre-badge {
   text-shadow: none !important;
 }
 
-/* 浅色主题下数量标签改白底深字，压在封面上仍清晰 */
-html[data-theme='light'] .count-badge {
-  border-color: rgba(10, 17, 34, 0.35) !important;
-  background: rgba(255, 255, 255, 0.92) !important;
-  color: #101a2c !important;
-  text-shadow: none !important;
-}
+/* 数量标签始终压在深色封面插画上，浅色主题下也保持「深底 + 平台色字」，
+   所以这里不再做主题覆盖。 */
 
 /* 危险按钮：浅粉字在白底上太淡 */
 html[data-theme='light'] .btn-danger {

@@ -11,6 +11,27 @@ export type PlatformCardData = {
 };
 
 /**
+ * 平台主色直接当字色会偏暗（如 gba 的 #5b4bcd），压在深色封面插画上读不清。
+ * 这里按相对亮度做有限次「向白色混合」，只提亮不够亮的颜色，够亮的原样返回。
+ */
+function accentFor(hex: string) {
+  const matched = /^#?([\da-f]{6})$/i.exec(hex || '');
+  const rgb = matched ? [0, 2, 4].map((i) => parseInt(matched[1].slice(i, i + 2), 16)) : [255, 255, 255];
+  const channel = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  const brightness = () => 0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2]);
+  for (let step = 0; step < 8 && brightness() < 0.38; step += 1) {
+    for (let i = 0; i < 3; i += 1) rgb[i] = Math.round(rgb[i] + (255 - rgb[i]) * 0.12);
+  }
+  return {
+    color: `rgb(${rgb.join(', ')})`,
+    glow: `rgba(${rgb.join(', ')}, 0.45)`,
+  };
+}
+
+/**
  * 平台卡片：275 × 401（含 3px 像素边框），上方 275 × 275 方图，下方 126 文字区。
  * 文字区：简称（左，大） + 全称（右，小，同一行）；简介居右；年份方框居左下，厂商居右下，不额外占行。
  */
@@ -24,6 +45,7 @@ export function PlatformCard({ platform }: { platform: PlatformCardData }) {
   const year = tx(`platform.${platform.id}.year`);
   const vendor = tx(`platform.${platform.id}.vendor`);
   const count = platform.count || 0;
+  const accent = accentFor(platform.color);
 
   return (
     <Link
@@ -64,7 +86,12 @@ export function PlatformCard({ platform }: { platform: PlatformCardData }) {
 
           {/* 游戏数量：右下角标签，0 款不显示，完全不占文字区 */}
           {count > 0 && (
-            <span className="count-badge">{t('platform.gamesBadge', { n: count })}</span>
+            <span
+              className="count-badge"
+              style={{ color: accent.color, borderColor: accent.color, textShadow: `0 0 8px ${accent.glow}` }}
+            >
+              {t('platform.gamesBadge', { n: count })}
+            </span>
           )}
         </div>
 
