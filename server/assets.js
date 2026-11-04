@@ -20,7 +20,7 @@ const BASE_SLOTS = [
     label: '站点标识',
     group: '通用',
     ratio: '240 × 64',
-    hint: '留空则显示文字 LOGO；透明 PNG 最佳',
+    hint: '留空则显示内置 GBA 图标 + 文字标识；上传后整块替换，透明 PNG 最佳（高 64px 起）',
   },
   {
     key: 'og_image',

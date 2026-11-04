@@ -37,9 +37,12 @@ function Logo() {
         />
       ) : (
         <>
-          <span className="px-btn-shape relative flex h-9 w-9 items-center justify-center border-2 border-neon-deep bg-neon text-[#04101f]">
-            <IconGamepad className="h-5 w-5" strokeWidth={2.2} />
-          </span>
+          {/* 站点标识：GBA 素材包图标（透明底，深色导航栏直接压上去即可） */}
+          <img
+            src="/brand/logo-mark.png"
+            alt={tx('brand.name') || 'ABXY ARCADE'}
+            className="pixel-img h-9 w-auto shrink-0 object-contain"
+          />
           <span className="hidden flex-col leading-none sm:flex">
             <span className="font-pixel text-[11px] tracking-tight text-white">
               {tx('brand.name') || 'ABXY ARCADE'}
