@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
@@ -505,6 +505,44 @@ export default function Admin() {
     }
   };
 
+  /** 平台筛选 + 未归档：紧跟在批量操作栏「归类到系列」右侧 */
+  const gameFilters = (
+    <>
+      <select
+        value={platformFilter}
+        onChange={(e) => {
+          setPlatformFilter(e.target.value);
+          setPage(1);
+        }}
+        className="h-8 shrink-0 border-2 border-line bg-[#0f0f16] px-2 text-xs text-white outline-none focus:border-neon"
+        aria-label={t('admin.filter.platform')}
+      >
+        <option value="">{t('admin.filter.allPlatforms')}</option>
+        {platforms.map((p) => (
+          <option key={p.id} value={p.id}>
+            {tx(`platform.${p.id}.name`) || p.short}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={() => {
+          setSeriesFilter((v) => (v === 'none' ? '' : 'none'));
+          setPage(1);
+        }}
+        aria-pressed={seriesFilter === 'none'}
+        title={t('admin.filter.unassignedHint')}
+        className={`h-8 shrink-0 border-2 px-3 text-xs font-bold transition-colors ${
+          seriesFilter === 'none'
+            ? 'border-neon bg-neon/10 text-neon'
+            : 'border-line bg-[#0f0f16] text-muted hover:border-neon/50 hover:text-white'
+        }`}
+      >
+        {t('admin.filter.unassigned')}
+      </button>
+    </>
+  );
+
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-5 sm:py-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -565,55 +603,16 @@ export default function Admin() {
             { id: 'texts' as Tab, label: t('admin.tab.texts') },
             { id: 'assets' as Tab, label: t('admin.tab.assets') },
           ].map((item) => (
-            <Fragment key={item.id}>
-              <button
-                onClick={() => setTab(item.id)}
-                className={`relative shrink-0 whitespace-nowrap px-3 py-2.5 text-sm font-bold transition-colors sm:px-4 ${
-                  tab === item.id ? 'text-neon' : 'text-muted hover:text-white'
-                }`}
-              >
-                {item.label}
-                {tab === item.id && <span className="absolute inset-x-2 -bottom-0.5 h-0.5 bg-neon" />}
-              </button>
-
-              {/* 筛选控件紧跟「系列管理」标签之后 */}
-              {item.id === 'series' && tab === 'games' && (
-                <div className="ml-1 mr-2 flex shrink-0 items-center gap-1.5 border-l-2 border-line/70 pl-2">
-                  <select
-                    value={platformFilter}
-                    onChange={(e) => {
-                      setPlatformFilter(e.target.value);
-                      setPage(1);
-                    }}
-                    className="h-7 shrink-0 border-2 border-line bg-[#0f0f16] px-1.5 text-[11px] text-white outline-none focus:border-neon"
-                    aria-label={t('admin.filter.platform')}
-                  >
-                    <option value="">{t('admin.filter.allPlatforms')}</option>
-                    {platforms.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {tx(`platform.${p.id}.name`) || p.short}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSeriesFilter((v) => (v === 'none' ? '' : 'none'));
-                      setPage(1);
-                    }}
-                    aria-pressed={seriesFilter === 'none'}
-                    title={t('admin.filter.unassignedHint')}
-                    className={`h-7 shrink-0 border-2 px-2 text-[11px] font-bold transition-colors ${
-                      seriesFilter === 'none'
-                        ? 'border-neon bg-neon/10 text-neon'
-                        : 'border-line bg-[#0f0f16] text-muted hover:border-neon/50 hover:text-white'
-                    }`}
-                  >
-                    {t('admin.filter.unassigned')}
-                  </button>
-                </div>
-              )}
-            </Fragment>
+            <button
+              key={item.id}
+              onClick={() => setTab(item.id)}
+              className={`relative shrink-0 whitespace-nowrap px-3 py-2.5 text-sm font-bold transition-colors sm:px-4 ${
+                tab === item.id ? 'text-neon' : 'text-muted hover:text-white'
+              }`}
+            >
+              {item.label}
+              {tab === item.id && <span className="absolute inset-x-2 -bottom-0.5 h-0.5 bg-neon" />}
+            </button>
           ))}
         </div>
 
@@ -650,35 +649,41 @@ export default function Admin() {
               <Spinner className="h-6 w-6" />
             </div>
           ) : !games || games.items.length === 0 ? (
-            <EmptyState
-              title={
-                seriesFilter === 'none' && !search && !platformFilter
-                  ? t('admin.games.emptyUnassigned')
-                  : search || platformFilter || seriesFilter
-                    ? t('admin.games.empty')
-                    : t('admin.games.none')
-              }
-              description={
-                seriesFilter === 'none' && !search && !platformFilter
-                  ? t('admin.games.emptyUnassignedDesc')
-                  : search || platformFilter || seriesFilter
-                    ? t('admin.games.emptyDesc')
-                    : t('admin.games.noneDesc')
-              }
-              action={
-                !search && !platformFilter && !seriesFilter ? (
-                  <button
-                    className="btn btn-primary text-xs"
-                    onClick={() => {
-                      setEditing(null);
-                      setFormOpen(true);
-                    }}
-                  >
-                    <IconPlus className="h-3.5 w-3.5" /> {t('admin.games.uploadFirst')}
-                  </button>
-                ) : null
-              }
-            />
+            <>
+              {/* 筛选结果为空时也要留着筛选控件，否则无法取消筛选 */}
+              {search || platformFilter || seriesFilter ? (
+                <div className="mb-3 flex flex-wrap items-center gap-2">{gameFilters}</div>
+              ) : null}
+              <EmptyState
+                title={
+                  seriesFilter === 'none' && !search && !platformFilter
+                    ? t('admin.games.emptyUnassigned')
+                    : search || platformFilter || seriesFilter
+                      ? t('admin.games.empty')
+                      : t('admin.games.none')
+                }
+                description={
+                  seriesFilter === 'none' && !search && !platformFilter
+                    ? t('admin.games.emptyUnassignedDesc')
+                    : search || platformFilter || seriesFilter
+                      ? t('admin.games.emptyDesc')
+                      : t('admin.games.noneDesc')
+                }
+                action={
+                  !search && !platformFilter && !seriesFilter ? (
+                    <button
+                      className="btn btn-primary text-xs"
+                      onClick={() => {
+                        setEditing(null);
+                        setFormOpen(true);
+                      }}
+                    >
+                      <IconPlus className="h-3.5 w-3.5" /> {t('admin.games.uploadFirst')}
+                    </button>
+                  ) : null
+                }
+              />
+            </>
           ) : (
             <>
               {/* 批量管理工具栏 */}
@@ -698,6 +703,8 @@ export default function Admin() {
                 >
                   {t('admin.batch.series', { n: selected.size })}
                 </button>
+                <span className="mx-1 h-5 w-0.5 shrink-0 bg-line/70" aria-hidden />
+                {gameFilters}
                 {selected.size > 0 && (
                   <button
                     className="text-[11px] font-bold text-muted hover:text-white"
