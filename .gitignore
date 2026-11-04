@@ -2,6 +2,7 @@ node_modules/
 web/node_modules/
 web/dist/
 data/
+backups/
 *.log
 .DS_Store
 .env

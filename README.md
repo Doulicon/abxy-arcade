@@ -303,6 +303,60 @@ docker compose start
 
 迁移到新机器：把整个 `data/` 目录拷过去，重新 `docker compose up -d` 即可。
 
+### 更新到新版本（数据不丢）
+
+**核心事实：数据不在镜像里。** `data/` 通过 bind mount 挂在宿主机，且同时被 `.gitignore` 和 `.dockerignore` 排除。所以不论 `git pull`、`docker compose build` 还是重建容器，**都不会碰到 `data/`**。
+
+一键更新：
+
+```bash
+cd /你的项目目录
+chmod +x scripts/update.sh   # 首次需要
+./scripts/update.sh
+```
+
+脚本做的事：备份 `data/`（跳过体积大的 `roms/`）→ `git pull --ff-only` → 重建镜像 → 滚动重启 → 健康检查。
+
+可选参数：
+
+| 参数 | 用途 |
+| --- | --- |
+| `--no-pull` | 新代码已手动覆盖到目录，只重建镜像 |
+| `--skip-backup` | 跳过备份（不建议） |
+
+手动步骤（不用脚本时等价于）：
+
+```bash
+docker compose stop                       # 1. 停服务，让 SQLite 落盘
+tar -czf abxy-backup-$(date +%F).tar.gz data/   # 2. 备份
+git pull origin main                      # 3. 取新代码
+docker compose up -d --build              # 4. 重建并启动
+docker compose logs -f --tail=50          # 5. 看日志确认
+```
+
+**线上不停机版本**：`build` 阶段旧容器仍在服务，只在最后 `up -d` 切一刀，停机约 1~2 秒。
+
+#### 会导致数据丢失的操作（务必避开）
+
+| 操作 | 后果 |
+| --- | --- |
+| `rm -rf data` / 手动删 `data/` | 数据库、封面、ROM、BIOS 全没 |
+| 改 `.env` 里 `DATA_PATH` 指向新路径 | 新路径是空库，看起来像"数据丢了"（旧数据还在原目录） |
+| 在新目录重新部署却忘了搬 `data/` | 同上 |
+| 用 tar 备份只拷 `app.db` 而漏了 `app.db-wal` | 恢复后可能缺失最新写入 |
+
+`docker compose down -v` 对本项目**不会**删 `data/`（`-v` 只删 named volume，本项目用的是 bind mount），但仍不建议在没备份时使用。
+
+#### 数据库结构升级
+
+新版本若加了字段或表，启动时会自动 `ALTER TABLE ADD COLUMN` / `CREATE TABLE IF NOT EXISTS`，无需手动迁移。降级到旧版本则可能不兼容（旧代码读不懂新字段），所以回滚时建议连数据一起回滚：
+
+```bash
+git reset --hard <旧提交>
+tar -xzf backups/data-<时间戳>.tar.gz -C ./data
+docker compose up -d --build
+```
+
 ---
 
 ## 六、环境变量
