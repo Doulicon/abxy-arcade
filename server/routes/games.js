@@ -463,6 +463,8 @@ const LIMITS = { title: 90, developer: 60, publisher: 60, genre: 30, description
 router.get('/admin/games', adminRequired, (req, res) => {
   const q = String(req.query.q || '').trim();
   const platform = String(req.query.platform || '').trim();
+  // series=none → 只看没归入任何系列的游戏；series=<id> → 看指定系列
+  const series = String(req.query.series || '').trim();
   const page = Math.max(1, Number(req.query.page) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 15));
   const sortKey = String(req.query.sort || 'latest');
@@ -477,6 +479,12 @@ router.get('/admin/games', adminRequired, (req, res) => {
   if (platform) {
     where.push('g.platform = @platform');
     params.platform = platform;
+  }
+  if (series === 'none') {
+    where.push('g.series_id IS NULL');
+  } else if (series) {
+    where.push('g.series_id = @series');
+    params.series = Number(series);
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const total = db.prepare(`SELECT COUNT(*) AS n FROM games g ${whereSql}`).get(params).n;

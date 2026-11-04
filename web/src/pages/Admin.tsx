@@ -222,6 +222,8 @@ export default function Admin() {
   const [keyword, setKeyword] = useState('');
   const [search, setSearch] = useState('');
   const [platformFilter, setPlatformFilter] = useState('');
+  /** '' = 全部；'none' = 只看没归入任何系列的游戏 */
+  const [seriesFilter, setSeriesFilter] = useState<'' | 'none'>('');
   const [gamesLoading, setGamesLoading] = useState(true);
 
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -259,7 +261,14 @@ export default function Admin() {
     setGamesLoading(true);
     try {
       const res = await api.get<Paged<Game>>(
-        `/admin/games${api.qs({ q: search, platform: platformFilter, page, pageSize: 15, sort: 'latest' })}`,
+        `/admin/games${api.qs({
+          q: search,
+          platform: platformFilter,
+          series: seriesFilter === 'none' ? 'none' : '',
+          page,
+          pageSize: 15,
+          sort: 'latest',
+        })}`,
       );
       setGames(res);
     } catch (e) {
@@ -267,7 +276,7 @@ export default function Admin() {
     } finally {
       setGamesLoading(false);
     }
-  }, [search, platformFilter, page, toast, t]);
+  }, [search, platformFilter, seriesFilter, page, toast, t]);
 
   const loadUsers = useCallback(async () => {
     setUsersLoading(true);
@@ -545,8 +554,8 @@ export default function Admin() {
       )}
 
       {/* Tabs */}
-      <div className="mt-6 flex items-center justify-between gap-3 border-b-2 border-line">
-        <div className="flex items-center gap-0">
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b-2 border-line">
+        <div className="flex min-w-0 items-center gap-0 overflow-x-auto">
           {[
             { id: 'games' as Tab, label: t('admin.tab.games') },
             { id: 'platforms' as Tab, label: t('admin.tab.platforms') },
@@ -559,7 +568,7 @@ export default function Admin() {
             <button
               key={item.id}
               onClick={() => setTab(item.id)}
-              className={`relative px-4 py-2.5 text-sm font-bold transition-colors ${
+              className={`relative shrink-0 whitespace-nowrap px-3 py-2.5 text-sm font-bold transition-colors sm:px-4 ${
                 tab === item.id ? 'text-neon' : 'text-muted hover:text-white'
               }`}
             >
@@ -570,14 +579,14 @@ export default function Admin() {
         </div>
 
         {tab === 'games' && (
-          <div className="mb-1.5 flex items-center gap-2">
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <select
               value={platformFilter}
               onChange={(e) => {
                 setPlatformFilter(e.target.value);
                 setPage(1);
               }}
-              className="h-8 border-2 border-line bg-[#0f0f16] px-2 text-xs text-white outline-none focus:border-neon"
+              className="h-8 shrink-0 border-2 border-line bg-[#0f0f16] px-2 text-xs text-white outline-none focus:border-neon"
               aria-label={t('admin.filter.platform')}
             >
               <option value="">{t('admin.filter.allPlatforms')}</option>
@@ -587,6 +596,22 @@ export default function Admin() {
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={() => {
+                setSeriesFilter((v) => (v === 'none' ? '' : 'none'));
+                setPage(1);
+              }}
+              aria-pressed={seriesFilter === 'none'}
+              title={t('admin.filter.unassignedHint')}
+              className={`h-8 shrink-0 border-2 px-3 text-xs font-bold transition-colors ${
+                seriesFilter === 'none'
+                  ? 'border-neon bg-neon/10 text-neon'
+                  : 'border-line bg-[#0f0f16] text-muted hover:border-neon/50 hover:text-white'
+              }`}
+            >
+              {t('admin.filter.unassigned')}
+            </button>
             <form
               className="relative"
               onSubmit={(e) => {
@@ -619,10 +644,22 @@ export default function Admin() {
             </div>
           ) : !games || games.items.length === 0 ? (
             <EmptyState
-              title={search || platformFilter ? t('admin.games.empty') : t('admin.games.none')}
-              description={search || platformFilter ? t('admin.games.emptyDesc') : t('admin.games.noneDesc')}
+              title={
+                seriesFilter === 'none' && !search && !platformFilter
+                  ? t('admin.games.emptyUnassigned')
+                  : search || platformFilter || seriesFilter
+                    ? t('admin.games.empty')
+                    : t('admin.games.none')
+              }
+              description={
+                seriesFilter === 'none' && !search && !platformFilter
+                  ? t('admin.games.emptyUnassignedDesc')
+                  : search || platformFilter || seriesFilter
+                    ? t('admin.games.emptyDesc')
+                    : t('admin.games.noneDesc')
+              }
               action={
-                !search && !platformFilter ? (
+                !search && !platformFilter && !seriesFilter ? (
                   <button
                     className="btn btn-primary text-xs"
                     onClick={() => {
