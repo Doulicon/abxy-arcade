@@ -320,6 +320,25 @@ chmod +x scripts/update.sh   # 首次需要
 
 脚本做的事：备份 `data/`（跳过体积大的 `roms/`）→ `git pull --ff-only` → 重建镜像 → 滚动重启 → 健康检查。
 
+#### 服务器上的 git 用不了 HTTP 时（群晖 DSM 常见）
+
+DSM 的 git 套件没有编译 HTTP 传输模块，`git fetch` 会直接报：
+
+```
+git: 'remote-http' is not a git command
+```
+
+这时改用不依赖 git 的同步脚本：从 Gitea 下载源码归档 → `rsync` 覆盖到项目目录 → 自动重建部署。
+
+```bash
+cd /你的项目目录
+bash scripts/sync-code.sh              # 同步 + 重建（等价于上面的 update.sh）
+bash scripts/sync-code.sh --no-deploy  # 只同步代码
+bash scripts/sync-code.sh --dry-run    # 预演，列出会变动的文件（需 rsync）
+```
+
+`data/`、`backups/`、`.env`、`.git` 全部排除，既不会被覆盖也不会被删除。可用 `ABXY_REF=main`、`ABXY_HOST=http://192.168.0.227:30001`、`ABXY_REPO=Gitea/ABXY` 覆盖默认值。
+
 可选参数：
 
 | 参数 | 用途 |

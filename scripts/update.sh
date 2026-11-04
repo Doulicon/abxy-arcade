@@ -101,7 +101,7 @@ fi
 gitc() { git -c safe.directory="$ROOT" "$@"; }
 
 if [ "$PULL" = 1 ]; then
-  if [ -d .git ] && gitc rev-parse --git-dir >/dev/null 2>&1; then
+  if [ -d .git ] && gitc rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
     echo "[2/5] 拉取最新代码..."
     gitc rev-parse --abbrev-ref HEAD | grep -qx main || echo "      [提示] 当前不在 main 分支"
     # 本地有未提交改动时先停下，避免 merge 冲突弄坏工作区
@@ -123,7 +123,8 @@ if [ "$PULL" = 1 ]; then
       chown -R "$SUDO_USER": .git 2>/dev/null || true
     fi
   else
-    echo "[2/5] 未检测到 .git，跳过程序拉取（请确认新代码已覆盖到本目录）"
+    echo "[2/5] 未检测到可用的 git 仓库，跳过代码拉取"
+    echo "      如需从 Gitea 取新代码：bash scripts/sync-code.sh --no-deploy"
   fi
 else
   echo "[2/5] 已跳过代码拉取 (--no-pull)"
