@@ -11,8 +11,8 @@ import { PLATFORMS, PLATFORM_MAP, ROM_EXTS, guessPlatform } from './platforms.js
  *   ├── mslug-xxxx.zip        游戏 ROM（文件名尽量保留原始名）
  *   └── resources/            该平台的附加资源（BIOS、系统文件、说明文档…）
  *
- * 平台目录名就是 platforms.js 里的平台 id（nes / arcade / neogeo …），
- * 这样扫描目录时可以不依赖数据库直接反推平台。
+ * 平台目录名就是 platforms.js 里的平台 id（fc / sfc / arcade / neogeo …），
+ * 目录名与平台简称一致，扫描目录时可不依赖数据库直接反推平台。
  */
 export const RESOURCES_DIRNAME = 'resources';
 
@@ -26,9 +26,42 @@ export function relRomPath(platformId, filename) {
   return `${dir}/${filename}`;
 }
 
+/** 历史平台 id → 现行 id：老部署升级时把 nes/、snes/ 目录并到 fc/、sfc/ */
+const LEGACY_DIRS = { nes: 'fc', snes: 'sfc' };
+
+/**
+ * 迁移旧平台目录（nes → fc、snes → sfc）。
+ * 目标目录已存在时逐个文件搬过去（不覆盖同名文件），随后删掉空壳目录。
+ * 整个过程 best-effort：任何一步失败只记录，不阻断启动。
+ */
+export function migrateLegacyRomDirs() {
+  for (const [oldId, newId] of Object.entries(LEGACY_DIRS)) {
+    const oldDir = path.join(ROM_DIR, oldId);
+    if (!fs.existsSync(oldDir) || !fs.statSync(oldDir).isDirectory()) continue;
+    const newDir = path.join(ROM_DIR, newId);
+    try {
+      fs.mkdirSync(newDir, { recursive: true });
+      for (const entry of fs.readdirSync(oldDir, { withFileTypes: true })) {
+        const src = path.join(oldDir, entry.name);
+        const dest = path.join(newDir, entry.name);
+        if (fs.existsSync(dest)) continue; // 同名已存在，保留目标文件
+        fs.renameSync(src, dest);
+      }
+      // 只剩空目录才算迁移完成；还有残留文件就保留，避免误删
+      if (fs.readdirSync(oldDir).length === 0) {
+        fs.rmSync(oldDir, { recursive: true, force: true });
+        console.log(`  ▸ ROM 目录迁移: ${oldId}/ → ${newId}/`);
+      }
+    } catch (err) {
+      console.warn(`  ! ROM 目录迁移 ${oldId} → ${newId} 失败:`, err.message);
+    }
+  }
+}
+
 /** 每个平台目录 + resources 子目录，启动时建好，管理员可直接往里丢文件 */
 export function ensureRomLayout() {
   fs.mkdirSync(ROM_DIR, { recursive: true });
+  migrateLegacyRomDirs();
   for (const p of PLATFORMS) {
     fs.mkdirSync(path.join(ROM_DIR, p.id, RESOURCES_DIRNAME), { recursive: true });
   }
@@ -115,9 +148,24 @@ export function migrateRomLayout(log = () => {}) {
   ensureRomLayout();
   const rows = db.prepare("SELECT id, platform, rom_file FROM games WHERE rom_file <> ''").all();
   let moved = 0;
+  let relinked = 0;
   for (const row of rows) {
     const rel = String(row.rom_file).replace(/\\/g, '/');
-    if (rel.includes('/')) continue;
+
+    // 已按平台分目录：修正旧平台 id 前缀（nes/ → fc/、snes/ → sfc/）
+    if (rel.includes('/')) {
+      const [head, ...rest] = rel.split('/');
+      const nextId = LEGACY_DIRS[head];
+      if (nextId && rest.length) {
+        const nextRel = [nextId, ...rest].join('/');
+        if (fs.existsSync(path.join(ROM_DIR, nextRel))) {
+          db.prepare('UPDATE games SET rom_file = ? WHERE id = ?').run(nextRel, row.id);
+          relinked += 1;
+        }
+      }
+      continue;
+    }
+
     const src = path.join(ROM_DIR, rel);
     if (!fs.existsSync(src)) continue;
     const dir = platformDir(row.platform);
@@ -133,7 +181,8 @@ export function migrateRomLayout(log = () => {}) {
     }
   }
   if (moved) log(`已把 ${moved} 个 ROM 归入平台目录`);
-  return moved;
+  if (relinked) log(`已修正 ${relinked} 条 ROM 记录的旧平台路径`);
+  return moved + relinked;
 }
 
 /** 递归列目录，跳过 resources 子目录 */

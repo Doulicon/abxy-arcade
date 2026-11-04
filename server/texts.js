@@ -168,7 +168,7 @@ const BASE = {
 
 /** 平台卡片默认文案：名称 / 副名 / 简介 / 年份 / 厂商类型 */
 const PLATFORM_DEFAULTS = {
-  nes: {
+  fc: {
     name: loc('FC'),
     sub: loc('FAMILY COMPUTER'),
     year: '1983',
@@ -182,7 +182,7 @@ const PLATFORM_DEFAULTS = {
       ru: 'Начало 8-битной эпохи. Здесь начинается всё.',
     }),
   },
-  snes: {
+  sfc: {
     name: loc('SFC'),
     sub: loc('SUPER FAMICOM'),
     year: '1990',
@@ -281,7 +281,7 @@ const PLATFORM_DEFAULTS = {
     }),
   },
   arcade: {
-    name: loc({ zh: '街机', 'zh-Hant': '街機', en: 'Arcade', ja: 'アーケード', ko: '아케이드', ru: 'Аркада' }),
+    name: loc('ARCADE'),
     sub: loc('COIN-OP'),
     year: '1978',
     vendor: loc({ zh: 'Various / 街机', 'zh-Hant': 'Various / 街機', en: 'Various / Arcade', ja: '各社 / アーケード', ko: '다수 / 아케이드', ru: 'Разные / Аркада' }),
@@ -295,7 +295,7 @@ const PLATFORM_DEFAULTS = {
     }),
   },
   neogeo: {
-    name: loc('NEO GEO'),
+    name: loc('NEOGEO'),
     sub: loc('SNK ARCADE'),
     year: '1990',
     vendor: loc({ zh: 'SNK / 街机', 'zh-Hant': 'SNK / 街機', en: 'SNK / Arcade', ja: 'SNK / アーケード', ko: 'SNK / 아케이드', ru: 'SNK / Аркада' }),

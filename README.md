@@ -96,45 +96,47 @@ npm start
 | 年份/开发商/发行商/类型/人数 | ⬜ | 展示用 |
 | 简介 | ⬜ | 支持换行 |
 | 模拟器核心 | ⬜ | 默认按平台自动选；街机可切 CPS1/CPS2 旧核心 |
-| BIOS | ⬜ | 街机（尤其 NEO GEO）用，先在「BIOS 管理」上传再选 |
+| BIOS | ⬜ | 街机（尤其 NEOGEO）用，先在「BIOS 管理」上传再选 |
 | 设为首页精选 | ⬜ | 会出现在首页顶部轮播 |
 
 ### 支持的平台与 ROM 格式
 
-| 平台 | EJS 内核 | 可用扩展名 |
-| --- | --- | --- |
-| FC / NES | `fceumm` | `.nes` `.unf` `.unif` `.zip` |
-| SFC / SNES | `snes9x` | `.sfc` `.smc` `.fig` `.zip` |
-| Game Boy | `gambatte` | `.gb` `.zip` |
-| Game Boy Color | `gambatte` | `.gbc` `.zip` |
-| Game Boy Advance | `mgba` | `.gba` `.zip` |
-| Nintendo 64 | `mupen64plus_next` | `.n64` `.z64` `.v64` `.zip` |
-| Mega Drive / Genesis | `genesis_plus_gx` | `.md` `.gen` `.smd` `.bin` `.zip` |
-| Nintendo DS | `melonds` | `.nds` `.zip` |
-| 街机 / ARCADE | `fbneo`（可切 `fbalpha2012_cps1/cps2`） | `.zip` |
-| NEO GEO | `fbneo` + `neogeo.zip` | `.zip` |
+| 平台（目录名） | 显示名 | EJS 内核 | 可用扩展名 |
+| --- | --- | --- | --- |
+| `fc` | FC / 红白机 | `fceumm` | `.nes` `.unf` `.unif` `.zip` |
+| `sfc` | SFC / 超任 | `snes9x` | `.sfc` `.smc` `.fig` `.zip` |
+| `gb` | Game Boy | `gambatte` | `.gb` `.zip` |
+| `gbc` | Game Boy Color | `gambatte` | `.gbc` `.zip` |
+| `gba` | Game Boy Advance | `mgba` | `.gba` `.zip` |
+| `n64` | Nintendo 64 | `mupen64plus_next` | `.n64` `.z64` `.v64` `.zip` |
+| `md` | MD / 世嘉五代 | `genesis_plus_gx` | `.md` `.gen` `.smd` `.bin` `.zip` |
+| `nds` | Nintendo DS | `melonds` | `.nds` `.zip` |
+| `arcade` | Arcade / 街机 | `fbneo`（可切 `fbalpha2012_cps1/cps2`） | `.zip` |
+| `neogeo` | NEOGEO / 街机 | `fbneo` + `neogeo.zip` | `.zip` |
 
+> 平台 id 即 ROM 目录名，与显示简称一致；`emulatorCore` 是 EmulatorJS 的系统名（FC 对应 `nes`），两者解耦，改显示名不影响模拟器。
 > PS1 需要 BIOS，默认未开放，可在 `server/platforms.js` 中自行扩展。
 ### ROM 资源目录（按平台分类）
 
-上传的 ROM 不再平铺在 `data/roms/` 根目录，而是**每个平台一个文件夹，文件夹名就是平台 id**：
+上传的 ROM 不再平铺在 `data/roms/` 根目录，而是**每个平台一个文件夹，文件夹名就是平台 id（= 平台简称的小写）**：
 
 ```
 data/roms/
-├── nes/          resources/     # ROM 文件；resources/ 放该平台的附加资源
-├── snes/         resources/
+├── fc/           resources/     # 红白机 ROM；resources/ 放该平台的附加资源
+├── sfc/          resources/
 ├── gb/  gbc/  gba/  n64/  md/  nds/
 ├── arcade/       resources/
 │   ├── mslug.zip
 │   └── resources/fbneo/        # 内核存档、高分配置等资源文件
 └── neogeo/       resources/
-    ├── 2XFyshCsKIPpxq.zip
+    ├── mslug.zip
     └── resources/neogeo.zip    # 平台 BIOS 备份（正式生效的是 data/bios/）
 ```
 
 - 上传时自动落到对应平台目录（`server/roms.js` 的 `saveRom()`），文件名尽量保留原始名；街机仍是 `romset 短名.zip`。
 - `resources/` 里的文件**不会被当成游戏扫描**，用来放 BIOS 备份、系统文件、说明等。
 - 旧版本平铺在 `data/roms/` 根目录的记录，服务启动时会自动按记录的平台搬进对应文件夹并更新数据库（`migrateRomLayout()`）。
+- 旧版本的 `nes/`、`snes/` 目录，启动时会自动迁移为 `fc/`、`sfc/`。
 
 ### 直接丢 ROM 也能上架（默认信息 + 文件名）
 
@@ -157,7 +159,7 @@ data/roms/
 > 街机 `rom_name` 是内核匹配 romset 用的名字，扫描不会改写它，只在为空时补上。
 
 
-### 街机 / NEO GEO（重点）
+### Arcade / NEOGEO（重点）
 
 街机跟家用机完全不是一回事，三个坑提前说清：
 
@@ -165,7 +167,7 @@ data/roms/
    FBNeo 是**用压缩包文件名**去匹配驱动名的，改成中文名或随机名一定会报 `Romset is unknown`。
    后台已做校验：街机平台上传时文件名不符合 `小写字母+数字+下划线.zip` 会直接拒绝并提示。
 2. **romset 版本要和 FBNeo 对齐**。老 romset（CPS1/CPS2 早期合集）可在游戏表单里把「模拟器核心」切到 `fbalpha2012_cps1` / `fbalpha2012_cps2`。版本不匹配时模拟器会列出缺哪个 ROM，按提示换对应版本的 romset 即可。
-3. **NEO GEO 必须挂 BIOS**：管理员后台 →「BIOS 管理」上传 `neogeo.zip`（保持原名），然后在上传游戏时 BIOS 下拉里选中它。没挂 BIOS 的游戏会直接提示无法启动，不会黑屏。
+3. **NEOGEO 必须挂 BIOS**：管理员后台 →「BIOS 管理」上传 `neogeo.zip`（保持原名），然后在上传游戏时 BIOS 下拉里选中它。没挂 BIOS 的游戏会直接提示无法启动，不会黑屏。
 
 扩展名报错、`Zip is not supported` 之类，基本都是把 romset 解压成散文件了——重新压回 `romset 名.zip` 即可。
 
@@ -239,7 +241,7 @@ data/roms/
 - 游戏卡与平台卡共用同一个 `<PixelCard>` 组件，保证全站视觉一致。
 - **平台卡 ≈ 275 × 401**（含 3px 边框，宽度随容器 5 等分自适应）：上方方图（`.card-art--platform`，1:1），下方 118px 文字区（`.card-body--platform`）= 名称（**13px**，左，白色）+ 全称（8px，右，同一行）／简介（**12px，左对齐、与名称同色**，两行截断）／年份方框（左下，10px）+ 厂商（右下，与年份同一行，不额外占行）。
 - **游戏卡 = 横向**：上方 **16:9 横图**（`.card-art--game`，贴近显示器比例，直接传游戏截图即可），下方 **68px** 文字区（`.card-body--game`）只放游戏名（**13px**，两行截断）+ 类型标签（`.genre-chip`，**11px**，最多两枚、单行不换行）；类型在后台用 `/` 或 `、` 分隔即可拆成多个标签。1440 宽下 4 列，单卡约 288 × 230（图 162 高）。
-  - 平台标签（`.platform-badge`，NES / ARCADE / NEOGEO…，**10px** 像素字）在**图片右下角**；精选星标仍在左上，缺 ROM 提示在右上，互不打架。
+  - 平台标签（`.platform-badge`，FC / ARCADE / NEOGEO…，**10px** 像素字）在**图片右下角**；精选星标仍在左上，缺 ROM 提示在右上，互不打架。
   - 视觉空档避让：文字区上下内边距压到 4px、名称与标签整体垂直居中、间距 4px —— 单行标题时不会在中间留一条空带，两行标题 + 两枚标签也刚好填满（不换行、不溢出）。
   - 游戏网格统一为 **1 / 2 / 3 / 4 列**（手机 / sm / lg / xl），首页精选、游戏库、我的收藏、详情页「同平台推荐」四处一致；封面在后台表单里也按 16:9 预览。
   - **详情页封面同样 16:9**（`.aspect-video`，宽 300 / 380px），和卡片同一比例，上传的横图不会再被裁掉两边。
@@ -371,7 +373,7 @@ docker compose start
 | PUT | `/api/admin/games/:id` | 管理员 | 编辑 |
 | DELETE | `/api/admin/games/:id` | 管理员 | 删除（连带文件） |
 | PATCH | `/api/admin/games/:id/weight` | 管理员 | 行内改排序权重（body `{ weight }`，-9999~9999） |
-| PUT | `/api/admin/platform-weights` | 管理员 | 批量保存平台权重（body `{ weights: { nes: 100 } }`） |
+| PUT | `/api/admin/platform-weights` | 管理员 | 批量保存平台权重（body `{ weights: { fc: 100 } }`） |
 | POST | `/api/auth/password` | 登录 | 修改本人密码（body `{ oldPassword, newPassword }`） |
 | POST | `/api/admin/roms/scan` | 管理员 | 扫描 `data/roms/<平台>/`：新文件按默认信息上架、丢失文件标记「ROM 丢失」、找回文件自动恢复 |
 | GET | `/api/admin/stats` | 管理员 | 站点统计 |

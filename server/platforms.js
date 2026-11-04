@@ -1,12 +1,13 @@
 /**
  * 支持的游戏平台。
- * emulatorCore 对应 EmulatorJS 的系统名（EJS_core），core 是该系统下的默认模拟核心。
+ * id 同时是 ROM 子目录名（data/roms/<id>），一律小写、与 short 对齐，玩家看目录就能对上平台。
+ * emulatorCore 对应 EmulatorJS 的系统名（EJS_core），与 id 解耦：FC 的 EJS 系统名仍是 nes。
  * exts 用于上传校验，EmulatorJS 可直接读取 zip（内部同名 rom）。
  */
 export const PLATFORMS = [
   {
-    id: 'nes',
-    name: 'FC',
+    id: 'fc',
+    name: 'FC / 红白机',
     short: 'FC',
     emulatorCore: 'nes',
     core: 'fceumm',
@@ -14,8 +15,8 @@ export const PLATFORMS = [
     exts: ['.nes', '.unf', '.unif', '.zip'],
   },
   {
-    id: 'snes',
-    name: 'SFC',
+    id: 'sfc',
+    name: 'SFC / 超任',
     short: 'SFC',
     emulatorCore: 'snes',
     core: 'snes9x',
@@ -60,7 +61,7 @@ export const PLATFORMS = [
   },
   {
     id: 'md',
-    name: 'Mega Drive / Genesis',
+    name: 'MD / 世嘉五代',
     short: 'MD',
     emulatorCore: 'segaMD',
     core: 'genesis_plus_gx',
@@ -78,7 +79,7 @@ export const PLATFORMS = [
   },
   {
     id: 'arcade',
-    name: '街机 / ARCADE',
+    name: 'Arcade / 街机',
     short: 'ARCADE',
     emulatorCore: 'arcade',
     core: 'fbneo',
@@ -94,7 +95,7 @@ export const PLATFORMS = [
   },
   {
     id: 'neogeo',
-    name: 'NEO GEO / 街机',
+    name: 'NEOGEO / 街机',
     short: 'NEOGEO',
     emulatorCore: 'arcade',
     core: 'fbneo',
