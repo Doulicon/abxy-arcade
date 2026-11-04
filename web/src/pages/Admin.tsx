@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
@@ -565,53 +565,60 @@ export default function Admin() {
             { id: 'texts' as Tab, label: t('admin.tab.texts') },
             { id: 'assets' as Tab, label: t('admin.tab.assets') },
           ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setTab(item.id)}
-              className={`relative shrink-0 whitespace-nowrap px-3 py-2.5 text-sm font-bold transition-colors sm:px-4 ${
-                tab === item.id ? 'text-neon' : 'text-muted hover:text-white'
-              }`}
-            >
-              {item.label}
-              {tab === item.id && <span className="absolute inset-x-2 -bottom-0.5 h-0.5 bg-neon" />}
-            </button>
+            <Fragment key={item.id}>
+              <button
+                onClick={() => setTab(item.id)}
+                className={`relative shrink-0 whitespace-nowrap px-3 py-2.5 text-sm font-bold transition-colors sm:px-4 ${
+                  tab === item.id ? 'text-neon' : 'text-muted hover:text-white'
+                }`}
+              >
+                {item.label}
+                {tab === item.id && <span className="absolute inset-x-2 -bottom-0.5 h-0.5 bg-neon" />}
+              </button>
+
+              {/* 筛选控件紧跟「系列管理」标签之后 */}
+              {item.id === 'series' && tab === 'games' && (
+                <div className="ml-1 mr-2 flex shrink-0 items-center gap-1.5 border-l-2 border-line/70 pl-2">
+                  <select
+                    value={platformFilter}
+                    onChange={(e) => {
+                      setPlatformFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className="h-7 shrink-0 border-2 border-line bg-[#0f0f16] px-1.5 text-[11px] text-white outline-none focus:border-neon"
+                    aria-label={t('admin.filter.platform')}
+                  >
+                    <option value="">{t('admin.filter.allPlatforms')}</option>
+                    {platforms.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {tx(`platform.${p.id}.name`) || p.short}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSeriesFilter((v) => (v === 'none' ? '' : 'none'));
+                      setPage(1);
+                    }}
+                    aria-pressed={seriesFilter === 'none'}
+                    title={t('admin.filter.unassignedHint')}
+                    className={`h-7 shrink-0 border-2 px-2 text-[11px] font-bold transition-colors ${
+                      seriesFilter === 'none'
+                        ? 'border-neon bg-neon/10 text-neon'
+                        : 'border-line bg-[#0f0f16] text-muted hover:border-neon/50 hover:text-white'
+                    }`}
+                  >
+                    {t('admin.filter.unassigned')}
+                  </button>
+                </div>
+              )}
+            </Fragment>
           ))}
         </div>
 
         {tab === 'games' && (
-          <div className="mb-1.5 flex flex-wrap items-center gap-2">
-            <select
-              value={platformFilter}
-              onChange={(e) => {
-                setPlatformFilter(e.target.value);
-                setPage(1);
-              }}
-              className="h-8 shrink-0 border-2 border-line bg-[#0f0f16] px-2 text-xs text-white outline-none focus:border-neon"
-              aria-label={t('admin.filter.platform')}
-            >
-              <option value="">{t('admin.filter.allPlatforms')}</option>
-              {platforms.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {tx(`platform.${p.id}.name`) || p.short}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => {
-                setSeriesFilter((v) => (v === 'none' ? '' : 'none'));
-                setPage(1);
-              }}
-              aria-pressed={seriesFilter === 'none'}
-              title={t('admin.filter.unassignedHint')}
-              className={`h-8 shrink-0 border-2 px-3 text-xs font-bold transition-colors ${
-                seriesFilter === 'none'
-                  ? 'border-neon bg-neon/10 text-neon'
-                  : 'border-line bg-[#0f0f16] text-muted hover:border-neon/50 hover:text-white'
-              }`}
-            >
-              {t('admin.filter.unassigned')}
-            </button>
+          <div className="mb-1.5 flex items-center gap-2">
             <form
               className="relative"
               onSubmit={(e) => {
