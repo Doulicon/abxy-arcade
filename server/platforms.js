@@ -142,6 +142,49 @@ export function guessPlatform(fileName) {
   return EXT_PLATFORM.get(ext) || (ext === '.zip' ? 'arcade' : null);
 }
 
+/**
+ * 严格按扩展名猜平台：zip 无法判断时返回 null。
+ * 批量扫描用这个，避免把一整柜 FC 的 zip 全塞进街机。
+ */
+export function guessPlatformStrict(fileName) {
+  const ext = String(fileName || '').toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || '';
+  if (!ext) return null;
+  return EXT_PLATFORM.get(ext) || null;
+}
+
+/**
+ * 目录名 → 平台 id。
+ * 玩家的 ROM 往往是「FC中文游戏全集」「SFC游戏合集」「GBA」这种中文/大写目录，
+ * 不会自己改成 fc/ sfc/。这里按别名猜一次，猜中就把里面的文件归到该平台。
+ */
+const NAME_ALIASES = (() => {
+  const raw = {
+    fc: ['fc', 'nes', 'famicom', '红白机', '任天堂', '小霸王', '8位机'],
+    sfc: ['sfc', 'snes', 'superfamicom', 'supernintendo', '超任', '超级任天堂', '16位机'],
+    gba: ['gba', 'gameboyadvance'],
+    gbc: ['gbc', 'gameboycolor', 'gbcolor', '彩机'],
+    gb: ['gb', 'gameboy', '砖头机'],
+    n64: ['n64', 'nintendo64', '神游机'],
+    md: ['md', 'megadrive', 'genesis', 'sega', '世嘉', '五代机'],
+    nds: ['nds', 'nintendods', '双屏机'],
+    neogeo: ['neogeo', 'neogeoaes', 'neogeomvs'],
+    arcade: ['arcade', 'mame', 'fbneo', 'fba', 'cps1', 'cps2', 'cps3', '街机', '基板'],
+  };
+  return Object.entries(raw)
+    .flatMap(([id, list]) => list.map((alias) => [alias.replace(/[^a-z0-9\u4e00-\u9fa5]/g, ''), id]))
+    .filter(([alias]) => alias)
+    .sort((a, b) => b[0].length - a[0].length); // 长别名优先：sfc 先于 fc，gbc 先于 gb
+})();
+
+export function guessPlatformFromName(name) {
+  const key = String(name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]/g, '');
+  if (!key) return null;
+  const hit = NAME_ALIASES.find(([alias]) => key.includes(alias));
+  return hit ? hit[1] : null;
+}
+
 export function getPlatform(id) {
   return PLATFORM_MAP.get(id) || null;
 }

@@ -2,7 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { nanoid } from 'nanoid';
 import { db, ROM_DIR, BIOS_DIR } from './db.js';
-import { PLATFORMS, PLATFORM_MAP, ROM_EXTS, LEGACY_PLATFORM_IDS, guessPlatform } from './platforms.js';
+import {
+  PLATFORMS,
+  PLATFORM_MAP,
+  ROM_EXTS,
+  LEGACY_PLATFORM_IDS,
+  guessPlatform,
+  guessPlatformStrict,
+  guessPlatformFromName,
+} from './platforms.js';
 
 /**
  * ROM 资源归类规则
@@ -187,7 +195,8 @@ export function migrateRomLayout(log = () => {}) {
 }
 
 /** 递归列目录，跳过 resources 子目录 */
-function walk(dir, out = []) {
+function walk(dir, out = [], depth = 0) {
+  if (depth > 4) return out; // 防止异常深的目录把扫描拖死
   let entries = [];
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -199,7 +208,7 @@ function walk(dir, out = []) {
     const abs = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (entry.name === RESOURCES_DIRNAME) continue;
-      walk(abs, out);
+      walk(abs, out, depth + 1);
     } else if (entry.isFile()) {
       out.push(abs);
     }
@@ -207,12 +216,17 @@ function walk(dir, out = []) {
   return out;
 }
 
+/** 根目录下这些是数据目录（不是 ROM 合集），扫描时跳过 */
+const NON_ROM_DIRS = new Set(['covers', 'bios', 'assets', 'tmp', RESOURCES_DIRNAME]);
+
 /**
- * 扫描磁盘上所有 ROM 文件（含旧版遗留在 roms 根目录的文件）。
- * 返回 [{ platformId, absPath, relPath, fileName, size, needsRelocate }]
+ * 扫描磁盘上所有 ROM 文件。
+ * 平台归属的判定优先级：所在目录名（含中文/大写，如「FC中文游戏全集」）> 文件扩展名。
+ * 返回 { files: [{ platformId, absPath, relPath, fileName, size, needsRelocate }], unresolved: [目录名] }
  */
 export function listRomCandidates() {
-  const out = [];
+  const files = [];
+  const unresolved = [];
   const push = (abs, platformId, needRelocate) => {
     const fileName = path.basename(abs);
     const ext = path.extname(fileName).toLowerCase();
@@ -223,7 +237,7 @@ export function listRomCandidates() {
     } catch {
       return;
     }
-    out.push({
+    files.push({
       platformId,
       absPath: abs,
       relPath: needRelocate ? `${platformId}/${fileName}` : path.relative(ROM_DIR, abs).replace(/\\/g, '/'),
@@ -233,25 +247,54 @@ export function listRomCandidates() {
     });
   };
 
+  // ① 标准布局：roms/<平台 id>/ 下的一切（支持再嵌子目录）
   for (const p of PLATFORMS) {
     for (const abs of walk(path.join(ROM_DIR, p.id))) {
       const ext = path.extname(abs).toLowerCase();
       // 平台目录里的文件：扩展名不属于该平台时按扩展名重新推断，避免放错目录就废掉
       if (p.exts.includes(ext)) push(abs, p.id, false);
       else {
-        const guessed = guessPlatform(abs);
-        if (guessed) push(abs, guessed, false);
+        const guessed = guessPlatformStrict(abs);
+        if (guessed) push(abs, guessed, true);
       }
     }
   }
 
-  // 旧版平铺文件（放在 roms 根目录）
+  // ② 根目录下的其它子目录：玩家的 ROM 通常是「FC中文游戏全集」「SFC游戏」这种合集目录，
+  //    用目录名猜平台，猜中就把里面的文件搬进对应平台目录
   let root = [];
   try {
     root = fs.readdirSync(ROM_DIR, { withFileTypes: true });
   } catch {
     root = [];
   }
+
+  for (const entry of root) {
+    if (entry.name.startsWith('.')) continue;
+    if (!entry.isDirectory()) continue;
+    if (PLATFORM_MAP.has(entry.name) || NON_ROM_DIRS.has(entry.name)) continue;
+
+    const dirAbs = path.join(ROM_DIR, entry.name);
+    const byName = guessPlatformFromName(entry.name);
+    const found = walk(dirAbs);
+    let matched = 0;
+
+    for (const abs of found) {
+      const ext = path.extname(abs).toLowerCase();
+      if (!ROM_EXTS.has(ext)) continue;
+      // 目录名能定平台就用它；否则只信确定的扩展名（zip 不猜，避免整柜 FC 进街机）
+      const pid = byName || guessPlatformStrict(abs);
+      if (!pid) continue;
+      push(abs, pid, true);
+      matched++;
+    }
+
+    if (!matched && found.some((abs) => ROM_EXTS.has(path.extname(abs).toLowerCase()))) {
+      unresolved.push(entry.name);
+    }
+  }
+
+  // ③ 旧版平铺在 roms 根目录的文件
   for (const entry of root) {
     if (!entry.isFile() || entry.name.startsWith('.')) continue;
     const ext = path.extname(entry.name).toLowerCase();
@@ -261,7 +304,7 @@ export function listRomCandidates() {
     push(path.join(ROM_DIR, entry.name), platformId, true);
   }
 
-  return out;
+  return { files, unresolved };
 }
 
 /** 根目录遗留文件搬进平台目录，返回新的相对路径 */

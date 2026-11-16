@@ -441,7 +441,8 @@ export default function Admin() {
   };
 
   /** 扫描 data/roms/<平台>/：新文件按默认资料上架，丢了文件的条目改标记「缺 ROM」 */
-  const scanRoms = async () => {    setScanning(true);
+  const scanRoms = async () => {
+    setScanning(true);
     try {
       const res = await api.post<{
         scanned: number;
@@ -450,6 +451,7 @@ export default function Admin() {
         relinked: { title: string }[];
         missing: { title: string }[];
         skipped: { file: string; reason: string }[];
+        unresolved: string[];
       }>('/admin/roms/scan');
       if (res.created.length) {
         toast(t('admin.toast.scanDone', { n: res.created.length }), 'success');
@@ -465,6 +467,16 @@ export default function Admin() {
       }
       if (res.skipped.length) {
         toast(t('admin.toast.scanSkipped', { n: res.skipped.length }), 'info');
+      }
+      if (res.unresolved?.length) {
+        const names = res.unresolved.slice(0, 3).join('、');
+        toast(
+          t('admin.toast.scanUnresolved', {
+            names,
+            more: res.unresolved.length > 3 ? ` +${res.unresolved.length - 3}` : '',
+          }),
+          'error',
+        );
       }
       refreshAll();
     } catch (e) {

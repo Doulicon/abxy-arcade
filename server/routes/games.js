@@ -1038,7 +1038,7 @@ router.put('/admin/platform-weights', adminRequired, (req, res) => {
  */
 router.post('/admin/roms/scan', adminRequired, (_req, res) => {
   ensureRomLayout();
-  const candidates = listRomCandidates();
+  const { files: candidates, unresolved } = listRomCandidates();
   const rows = db
     .prepare('SELECT id, title, platform, rom_file, rom_name, rom_size, rom_missing FROM games')
     .all();
@@ -1171,6 +1171,7 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
     relinked,
     missing,
     skipped,
+    unresolved,
     folders: PLATFORMS.map((p) => ({ platform: p.id, name: p.name, dir: `roms/${p.id}` })),
   });
 });
