@@ -237,6 +237,53 @@ docker build \
   -t abxy-arcade:latest .
 ```
 
+### 报 `failed to resolve source metadata for docker.io/library/node:22-bookworm-slim`
+
+这是**拉不到基础镜像**，不是代码问题。国内直连 Docker Hub 基本都这样（`registry-1.docker.io` 被 DNS 污染，常见表现为 `dial tcp 103.246.246.144:443: connection refused`）。
+
+Dockerfile 已支持整体替换基础镜像，用 `--build-arg BASE_IMAGE=` 指到加速源即可：
+
+```bash
+# 单架构构建（群晖 / 威联通 / x86 小主机基本都是 amd64）
+docker build \
+  --build-arg BASE_IMAGE=docker.1panel.live/library/node:22-bookworm-slim \
+  -t abxy-arcade:latest .
+
+# 或者直接跑发布脚本，它会自动探测 Docker Hub 是否可达并切加速源
+sudo bash scripts/publish-image.sh ghcr.io/你的用户名 1.0.0
+```
+
+可用的加速源（按实测速度排序，某个挂了就换下一个）：
+
+| 加速源 | 地址前缀 |
+| --- | --- |
+| 1Panel | `docker.1panel.live/library/...` |
+| DaoCloud | `docker.m.daocloud.io/library/...` |
+| 1ms | `docker.1ms.run/library/...` |
+
+其他镜像同理，把 `node:22-bookworm-slim` 换成 `加速源/library/镜像名:标签` 就行。
+
+**想一次治本**（让所有 `docker pull` 都走镜像），配 daemon 级镜像源，注意要重启 Docker，正在跑的容器会重启一次：
+
+```bash
+sudo vi /etc/docker/daemon.json
+```
+
+```json
+{
+  "registry-mirrors": ["https://docker.1panel.live", "https://docker.m.daocloud.io"]
+}
+```
+
+```bash
+sudo systemctl restart docker     # 群晖：sudo synosystemctl restart docker
+```
+
+**多架构构建为什么会额外失败**：`docker buildx build --platform linux/amd64,linux/arm64` 除基础镜像外，还要从 Docker Hub 拉 `moby/buildkit` 和 `tonistiigi/binfmt`（QEMU），国内几乎必挂。所以：
+
+- 只跑当前机器架构 → 加 `--single`，或直接 `docker build`
+- 确实要 amd64 + arm64 双架构 → 推 `v*` tag 让 GitHub Actions 构建（`.github/workflows/docker-publish.yml`，CI 在国外网络通畅）
+
 ---
 
 ## 四、方式③：一条命令试玩

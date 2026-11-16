@@ -14,8 +14,13 @@ ARG NPM_REGISTRY=https://registry.npmmirror.com
 ARG APT_MIRROR=mirrors.aliyun.com
 ARG SQLITE_BINARY_MIRROR=https://cdn.npmmirror.com/binaries/better-sqlite3
 
+# 基础镜像。国内直连 Docker Hub 通常拉不动，可整体换成加速源：
+#   --build-arg BASE_IMAGE=docker.1panel.live/library/node:22-bookworm-slim
+# 国外/CI 构建保持默认即可。
+ARG BASE_IMAGE=node:22-bookworm-slim
+
 # ---------- 1. 构建前端 ----------
-FROM node:22-bookworm-slim AS webbuild
+FROM ${BASE_IMAGE} AS webbuild
 ARG NPM_REGISTRY
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json* ./
@@ -25,7 +30,7 @@ COPY web/ ./
 RUN npm run build
 
 # ---------- 2. 安装后端依赖（better-sqlite3 用预编译二进制，无需编译工具链） ----------
-FROM node:22-bookworm-slim AS deps
+FROM ${BASE_IMAGE} AS deps
 ARG NPM_REGISTRY
 ARG APT_MIRROR
 ARG SQLITE_BINARY_MIRROR
@@ -45,7 +50,7 @@ RUN NPM_FLAG=""; if [ -n "$NPM_REGISTRY" ]; then NPM_FLAG="--registry=$NPM_REGIS
   npm ci --omit=dev --no-audit --no-fund $NPM_FLAG || npm install --omit=dev --no-audit --no-fund $NPM_FLAG
 
 # ---------- 3. 运行镜像 ----------
-FROM node:22-bookworm-slim
+FROM ${BASE_IMAGE}
 ARG APT_MIRROR
 ENV NODE_ENV=production \
     DATA_DIR=/data \
