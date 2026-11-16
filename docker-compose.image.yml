@@ -11,7 +11,7 @@
 # ============================================
 services:
   abxy-arcade:
-    image: "${IMAGE_NAME:-doulicon/abxy-arcade:latest}"
+    image: "${IMAGE_NAME:-ghcr.io/doulicon/abxy-arcade:latest}"
     container_name: abxy-arcade
     ports:
       - "${HOST_PORT:-30000}:3000"
