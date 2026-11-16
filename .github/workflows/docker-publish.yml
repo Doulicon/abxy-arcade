@@ -3,6 +3,13 @@ name: 构建并发布镜像
 # 触发方式：
 #   1. 打标签推送：git tag v1.0.0 && git push origin v1.0.0
 #   2. 手动：Actions 页面 → 运行 workflow，可选填标签
+#
+# 推送到哪里：
+#   - GHCR（ghcr.io/仓库名）：只要有 GITHUB_TOKEN 就自动推，不用配任何东西
+#   - Docker Hub：需要在仓库 Settings → Secrets 里配两项
+#       DOCKERHUB_USERNAME  你的 Docker Hub 用户名
+#       DOCKERHUB_TOKEN     Docker Hub 的 Access Token（Read & Write），不是登录密码
+#     没配就只推 GHCR，不会报错
 on:
   push:
     tags:
