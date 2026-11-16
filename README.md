@@ -353,7 +353,7 @@ bash scripts/sync-code.sh --no-deploy  # 只同步代码
 bash scripts/sync-code.sh --dry-run    # 预演，列出会变动的文件（需 rsync）
 ```
 
-`data/`、`backups/`、`.env`、`.git` 全部排除，既不会被覆盖也不会被删除。可用 `ABXY_REF=main`、`ABXY_HOST=http://192.168.0.227:30001`、`ABXY_REPO=Gitea/ABXY` 覆盖默认值。
+`data/`、`backups/`、`.env`、`.git` 全部排除，既不会被覆盖也不会被删除。可用 `ABXY_REF=main`、`ABXY_HOST=http://192.168.0.227:30001`、`ABXY_REPO=nas/ABXY` 覆盖默认值。
 
 可选参数：
 

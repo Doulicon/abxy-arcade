@@ -16,7 +16,7 @@
 #
 # 可用环境变量覆盖：
 #   ABXY_HOST=http://192.168.0.227:30001
-#   ABXY_REPO=Gitea/ABXY
+#   ABXY_REPO=nas/ABXY
 #   ABXY_REF=main
 # ============================================================
 set -euo pipefail
@@ -25,7 +25,7 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 
 HOST="${ABXY_HOST:-http://192.168.0.227:30001}"
-REPO_SLUG="${ABXY_REPO:-Gitea/ABXY}"
+REPO_SLUG="${ABXY_REPO:-nas/ABXY}"
 REF="${ABXY_REF:-main}"
 
 DEPLOY=1
@@ -65,8 +65,15 @@ else
 fi
 
 # ---- 2. 下载归档包 ----
-TMP="$(mktemp -d 2>/dev/null || echo "/tmp/abxy-sync-$$")"
-mkdir -p "$TMP"
+# 优先用 /tmp：某些环境（Windows Git Bash）的 mktemp 会返回 C:\... 路径，
+# 交给 tar -f 会被当成远程主机（Cannot connect to C:），必须避开。
+if [ -d /tmp ] && [ -w /tmp ]; then
+  TMP="/tmp/abxy-sync-$$"
+  mkdir -p "$TMP"
+else
+  TMP="$(mktemp -d 2>/dev/null || echo "/tmp/abxy-sync-$$")"
+  mkdir -p "$TMP"
+fi
 trap 'rm -rf "$TMP"' EXIT
 
 SRC="$TMP/src"
