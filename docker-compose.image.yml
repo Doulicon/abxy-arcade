@@ -1,0 +1,49 @@
+# ============================================
+# ABXY ARCADE — 镜像部署（不构建，直接拉现成镜像）
+#
+# 用法：
+#   cp .env.image.example .env
+#   # 编辑 .env，把 IMAGE_NAME 改成正确的镜像地址
+#   docker compose -f docker-compose.image.yml up -d
+#
+# 与 docker-compose.yml（源码构建版）等价，只是把 build 换成 image。
+# 两者不要同时用；数据目录格式完全一致，可以随时互换。
+# ============================================
+services:
+  abxy-arcade:
+    image: "${IMAGE_NAME:-doulicon/abxy-arcade:latest}"
+    container_name: abxy-arcade
+    ports:
+      - "${HOST_PORT:-30000}:3000"
+    environment:
+      PORT: "3000"
+      DATA_DIR: /data
+      ROM_DIR: /data/roms
+      # JWT 密钥默认持久化在 data/.jwt-secret（迁移数据时自动沿用，登录态不失效）
+      # 如需覆盖，取消注释并填随机长字符串（覆盖后所有已登录用户需重新登录）
+      # JWT_SECRET: "please-change-this-secret-in-production"
+      # 首次启动时自动创建的管理员账号（已存在则忽略）
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin123}"
+      # 是否开放普通用户注册
+      ALLOW_REGISTER: "${ALLOW_REGISTER:-true}"
+      # 模拟器内核 CDN，国内可换成自建镜像地址
+      # EMULATOR_CDN: "https://cdn.emulatorjs.org/stable/data/"
+      # 时区：影响日志与时间显示，按需修改
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      # 数据目录（数据库、封面、素材、BIOS、JWT 密钥等）
+      - "${DATA_PATH:-./data}:/data"
+      # ROM 单独映射：往宿主机的 ROM_PATH 目录丢游戏文件即可
+      - "${ROM_PATH:-./data/roms}:/data/roms"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

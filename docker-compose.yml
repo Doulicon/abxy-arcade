@@ -1,3 +1,12 @@
+# ============================================
+# ABXY ARCADE — 源码构建部署（本机编译镜像）
+#
+# 用法：
+#   cp .env.example .env
+#   docker compose up -d --build
+#
+# 只想拉现成镜像、不想编译的，用 docker-compose.image.yml。
+# ============================================
 services:
   abxy-arcade:
     build:
@@ -22,6 +31,8 @@ services:
       ALLOW_REGISTER: "${ALLOW_REGISTER:-true}"
       # 模拟器内核 CDN，国内可换成自建镜像地址
       # EMULATOR_CDN: "https://cdn.emulatorjs.org/stable/data/"
+      # 时区：影响日志与时间显示，按需修改
+      TZ: "${TZ:-Asia/Shanghai}"
     volumes:
       # 数据目录（数据库、封面、素材、BIOS、JWT 密钥等）—— 可改路径
       - "${DATA_PATH:-./data}:/data"

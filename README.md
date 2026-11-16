@@ -16,13 +16,27 @@
 
 ## 一、快速开始
 
-### 方式 A：Docker Compose（推荐）
+> **给别人部署 / 发到论坛 / 装到 NAS？看 [DEPLOY.md](DEPLOY.md)** —— 镜像部署、源码部署、NAS 图形界面、反向代理、备份迁移、故障排查都在里面。
+
+### 方式 0：直接用现成镜像（最快，不编译）
+
+```bash
+mkdir -p abxy && cd abxy
+curl -fsSL -o docker-compose.yml \
+  https://raw.githubusercontent.com/Doulicon/abxy-arcade/main/docker-compose.image.yml
+docker compose up -d
+```
+
+打开 <http://localhost:30000>，`admin` / `admin123` 登录（记得改密码）。
+
+### 方式 A：Docker Compose 源码构建（要改代码时用）
 
 ```bash
 # 1. 进入项目目录
 cd abxy
 
-# 2. 修改 docker-compose.yml 里的 JWT_SECRET 和 ADMIN_PASSWORD（务必修改）
+# 2. 准备配置，至少改 ADMIN_PASSWORD
+cp .env.example .env
 
 # 3. 构建并启动
 docker compose up -d --build
@@ -31,14 +45,14 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
-打开 <http://localhost:3000>，用 `admin` / `admin123`（或你自定义的密码）登录 → 右上角「管理后台」→「上传新游戏」。
+打开 <http://localhost:30000>，用 `admin` / `admin123`（或你自定义的密码）登录 → 右上角「管理后台」→「上传新游戏」。
 
 ### 方式 B：纯 docker 命令
 
 ```bash
 docker build -t abxy-arcade .
 docker run -d --name abxy-arcade \
-  -p 3000:3000 \
+  -p 30000:3000 \
   -e JWT_SECRET="$(openssl rand -hex 32)" \
   -e ADMIN_PASSWORD="your-strong-password" \
   -v "$(pwd)/data:/data" \

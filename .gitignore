@@ -10,3 +10,6 @@ backups/
 .workbuddy/
 .git-rewrite/
 release-data/
+
+# 发布产物
+release/

@@ -11,3 +11,6 @@ data
 README.md
 *.log
 .DS_Store
+release
+backups
+docker-compose*.yml

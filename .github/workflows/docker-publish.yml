@@ -1,0 +1,94 @@
+name: 构建并发布镜像
+
+# 触发方式：
+#   1. 打标签推送：git tag v1.0.0 && git push origin v1.0.0
+#   2. 手动：Actions 页面 → 运行 workflow，可选填标签
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '镜像标签（留空则按提交号生成 dev-xxxxxxx）'
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    # secrets 不能直接出现在 step 的 if 条件里，先在 job 级 env 转成布尔串
+    env:
+      HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 QEMU（跨架构编译 ARM64 需要）
+        uses: docker/setup-qemu-action@v3
+
+      - name: 准备 Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 登录 Docker Hub
+        if: env.HAS_DOCKERHUB == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 登录 GitHub 容器仓库
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 计算镜像标签
+        id: vars
+        env:
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -e
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          elif [ "${GITHUB_REF#refs/tags/v}" != "$GITHUB_REF" ]; then
+            TAG="${GITHUB_REF#refs/tags/v}"
+          else
+            TAG="dev-$(echo "$GITHUB_SHA" | cut -c1-7)"
+          fi
+          SHORT="$(echo "$GITHUB_SHA" | cut -c1-7)"
+          GHCR="ghcr.io/${GITHUB_REPOSITORY,,}"
+          TAGS="$GHCR:$TAG,$GHCR:sha-$SHORT"
+          if [ -n "$DH_USER" ]; then
+            DH="$DH_USER/abxy-arcade"
+            TAGS="$TAGS,$DH:$TAG,$DH:sha-$SHORT"
+            case "$TAG" in
+              dev-*) ;;
+              *) TAGS="$TAGS,$DH:latest" ;;
+            esac
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
+          echo "本次标签：$TAGS"
+
+      - name: 构建并推送 amd64 + arm64
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.vars.outputs.tags }}
+          provenance: false
+          # 海外构建机用官方源，比国内镜像更快
+          build-args: |
+            NPM_REGISTRY=
+            APT_MIRROR=default
+            SQLITE_BINARY_MIRROR=
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
