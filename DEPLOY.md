@@ -47,15 +47,39 @@ ghcr.nju.edu.cn/doulicon/abxy-arcade:latest    # 国内加速源，内容完全�
 
 ## 二、方式①：Docker 镜像部署（推荐）
 
-### 2.1 建目录并取配置
+### 2.1 建目录并生成配置
+
+在服务器上执行（一条命令，不需要下载、不需要编辑器）：
 
 ```bash
 mkdir -p /opt/abxy && cd /opt/abxy
-curl -fsSL -o docker-compose.yml \
-  https://raw.githubusercontent.com/Doulicon/abxy-arcade/main/docker-compose.image.yml
+
+cat > docker-compose.yml <<'EOF'
+services:
+  abxy-arcade:
+    image: ghcr.io/doulicon/abxy-arcade:latest
+    container_name: abxy-arcade
+    ports:
+      - "30000:3000"
+    environment:
+      DATA_DIR: /data
+      ROM_DIR: /data/roms
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: admin123
+      ALLOW_REGISTER: "true"
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+EOF
 ```
 
-> 国内访问 raw.githubusercontent.com 不通的话，直接看本文 **附录 A** 把文件内容复制保存成 `docker-compose.yml`，效果一样。
+> **有代理、能访问 GitHub 的**，也可以用官方完整版覆盖（注释更详细，参数更全）：
+> ```bash
+> curl -fsSL -o docker-compose.yml \
+>   https://raw.githubusercontent.com/Doulicon/abxy-arcade/main/docker-compose.image.yml
+> ```
+> 两份内容等价，上面这份是精简过的，去掉注释便于直接粘贴。
 
 ### 2.2 启动
 
@@ -244,7 +268,7 @@ docker rm -f abxy-arcade
 1. 套件中心装 **Container Manager**
 2. 打开 → 左侧 **项目** → **新增**
 3. 项目名称填 `abxy-arcade`，路径选 `/volume1/docker/abxy-arcade`，来源选「创建 docker-compose.yml」
-4. 把 **附录 A** 的内容整段粘贴进去
+4. 把 **2.1 节** 里的 compose 内容整段粘贴进去
 5. 点「下一步」→「完成」，等它拉镜像启动
 6. 浏览器访问 `http://群晖IP:30000`
 
@@ -255,13 +279,13 @@ docker rm -f abxy-arcade
 ### 威联通 QTS 5
 
 1. App Center 装 **Container Station**
-2. 左侧 **应用程序** → **创建** → 粘贴附录 A 的 compose 内容
+2. 左侧 **应用程序** → **创建** → 粘贴 **2.1 节** 的 compose 内容
 3. 项目路径选 `/share/Container/abxy-arcade`
 4. 创建并启动
 
 ### 极空间 / 绿联 / 铁威马
 
-这些系统的「Docker → 项目 / Compose」功能都能直接粘贴附录 A 的内容，思路一致：**新建项目 → 粘贴 YAML → 启动**。
+这些系统的「Docker → 项目 / Compose」功能都能直接粘贴 **2.1 节** 的 compose 内容，思路一致：**新建项目 → 粘贴 YAML → 启动**。
 
 ---
 
@@ -565,42 +589,7 @@ docker compose logs -f --tail=100
 
 ---
 
-## 附录 A：`docker-compose.yml` 完整内容
-
-网络不通、下载不到配置文件时，手动新建 `docker-compose.yml`，把下面内容整段粘进去：
-
-```yaml
-services:
-  abxy-arcade:
-    image: "${IMAGE_NAME:-ghcr.io/doulicon/abxy-arcade:latest}"
-    container_name: abxy-arcade
-    ports:
-      - "${HOST_PORT:-30000}:3000"
-    environment:
-      PORT: "3000"
-      DATA_DIR: /data
-      ROM_DIR: /data/roms
-      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
-      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin123}"
-      ALLOW_REGISTER: "${ALLOW_REGISTER:-true}"
-      TZ: "${TZ:-Asia/Shanghai}"
-    volumes:
-      - "${DATA_PATH:-./data}:/data"
-      - "${ROM_PATH:-./data/roms}:/data/roms"
-    restart: unless-stopped
-    healthcheck:
-      test:
-        - CMD
-        - node
-        - -e
-        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-```
-
-## 附录 B：常用命令速查
+## 附录 A：常用命令速查
 
 ```bash
 docker compose up -d              # 启动（后台）
@@ -613,7 +602,7 @@ docker compose logs -f --tail=100 # 实时日志
 docker exec -it abxy-arcade sh    # 进容器看看
 ```
 
-## 附录 C：自己构建并发布镜像
+## 附录 B：自己构建并发布镜像
 
 想改代码后发布自己的镜像，三种仓库任选，脚本通用。
 
