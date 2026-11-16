@@ -60,7 +60,9 @@ if [ "$FIRST" = "$BASE" ]; then
   LOGIN_USER_DEFAULT="$BASE"
 else
   case "$FIRST" in
-    *.*|*:*) REGISTRY="$FIRST"; LOGIN_HOST="$FIRST" ;;
+    *.*|*:*) REGISTRY="$FIRST"; LOGIN_HOST="$FIRST"
+             # 默认用户名取路径第二段（ghcr.io/doulicon -> doulicon）
+             LOGIN_USER_DEFAULT="${BASE#*/}"; LOGIN_USER_DEFAULT="${LOGIN_USER_DEFAULT%%/*}" ;;
     *) REGISTRY="docker.io"; LOGIN_HOST=""; LOGIN_USER_DEFAULT="$FIRST" ;;
   esac
 fi
