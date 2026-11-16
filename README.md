@@ -29,6 +29,8 @@ docker compose up -d
 
 打开 <http://localhost:30000>，`admin` / `admin123` 登录（记得改密码）。
 
+镜像地址 `ghcr.io/doulicon/abxy-arcade:latest`，同时支持 amd64 与 arm64；国内拉不动就把 `ghcr.io` 换成 `ghcr.nju.edu.cn`。
+
 ### 方式 A：Docker Compose 源码构建（要改代码时用）
 
 ```bash

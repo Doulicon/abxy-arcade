@@ -65,6 +65,11 @@ jobs:
           SHORT="$(echo "$GITHUB_SHA" | cut -c1-7)"
           GHCR="ghcr.io/${GITHUB_REPOSITORY,,}"
           TAGS="$GHCR:$TAG,$GHCR:sha-$SHORT"
+          # 正式版本（非 dev-）额外打 latest，compose 默认拉的就是 latest
+          case "$TAG" in
+            dev-*) ;;
+            *) TAGS="$TAGS,$GHCR:latest" ;;
+          esac
           if [ -n "$DH_USER" ]; then
             DH="$DH_USER/abxy-arcade"
             TAGS="$TAGS,$DH:$TAG,$DH:sha-$SHORT"

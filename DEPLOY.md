@@ -36,9 +36,12 @@
 ### 镜像地址
 
 ```
-doulicon/abxy-arcade:latest     # amd64 + arm64 多架构
-ghcr.io/doulicon/abxy-arcade:latest   # 备用，Docker Hub 拉不动时用
+ghcr.io/doulicon/abxy-arcade:latest            # 官方地址，amd64 + arm64 多架构
+ghcr.nju.edu.cn/doulicon/abxy-arcade:latest    # 国内加速源，内容完全相同
 ```
+
+镜像托管在 GitHub 容器仓库（GHCR），公开可拉、**不需要登录任何账号**。
+国内直连 `ghcr.io` 经常超时，把地址里的 `ghcr.io` 换成 `ghcr.nju.edu.cn` 即可。
 
 ---
 
@@ -98,41 +101,47 @@ docker compose up -d    # 重新拉起，配置生效
 
 ### 2.4 国内拉不动镜像怎么办
 
-Docker Hub 在部分地区直连很慢甚至失败。三种办法，任选：
+`ghcr.io` 在国内经常连不上或只有几十 KB/s。按顺序试，第一个通常就够了。
 
-**办法一：配镜像加速器**（推荐，一次配好永久受益）
+**办法一：换国内镜像源**（最省事）
 
-编辑 `/etc/docker/daemon.json`（群晖在「Container Manager → 设置 → Docker Daemon」里改）：
-
-```json
-{
-  "registry-mirrors": [
-    "https://docker.1ms.run",
-    "https://dockerproxy.net",
-    "https://docker.m.daocloud.io"
-  ]
-}
-```
+把地址里的 `ghcr.io` 换成 `ghcr.nju.edu.cn`，其他一字不改：
 
 ```bash
-sudo systemctl restart docker    # 群晖在界面上点「应用」
-docker pull doulicon/abxy-arcade:latest
+docker pull ghcr.nju.edu.cn/doulicon/abxy-arcade:latest
+docker tag  ghcr.nju.edu.cn/doulicon/abxy-arcade:latest ghcr.io/doulicon/abxy-arcade:latest
 ```
 
-**办法二：换用备用仓库**
+或者干脆在 `.env` 里直接写加速地址，省掉 tag 那一步：
 
 ```bash
-docker pull ghcr.io/doulicon/abxy-arcade:latest
-docker tag ghcr.io/doulicon/abxy-arcade:latest doulicon/abxy-arcade:latest
+IMAGE_NAME=ghcr.nju.edu.cn/doulicon/abxy-arcade:latest
 ```
+
+> 这是高校公益镜像，不保证永久可用。失效时搜一下「ghcr 镜像加速」换一个源，或改用办法二、三。
+
+**办法二：给 Docker 配代理**
+
+```bash
+sudo mkdir -p /etc/systemd/system/docker.service.d
+sudo tee /etc/systemd/system/docker.service.d/proxy.conf <<'EOF'
+[Service]
+Environment="HTTP_PROXY=http://127.0.0.1:7890"
+Environment="HTTPS_PROXY=http://127.0.0.1:7890"
+Environment="NO_PROXY=localhost,127.0.0.1"
+EOF
+sudo systemctl daemon-reload && sudo systemctl restart docker
+```
+
+把 `7890` 换成你自己代理的端口。群晖在「Container Manager → 设置 → Docker Daemon」里也能填代理。
 
 **办法三：离线导入镜像**（完全没网也行）
 
 在一台能拉镜像的机器上：
 
 ```bash
-docker pull doulicon/abxy-arcade:latest
-docker save doulicon/abxy-arcade:latest | gzip > abxy-arcade.tar.gz
+docker pull ghcr.io/doulicon/abxy-arcade:latest
+docker save ghcr.io/doulicon/abxy-arcade:latest | gzip > abxy-arcade.tar.gz
 ```
 
 把 `abxy-arcade.tar.gz` 拷到目标机器：
@@ -141,6 +150,9 @@ docker save doulicon/abxy-arcade:latest | gzip > abxy-arcade.tar.gz
 docker load < abxy-arcade.tar.gz
 cd /opt/abxy && docker compose up -d
 ```
+
+> `docker load` 之后本地镜像名就是 `ghcr.io/doulicon/abxy-arcade:latest`，与 compose 里的默认值一致，不用改任何配置。发的论坛帖如果允许传大附件，也可以直接把 `abxy-arcade.tar.gz` 传上去让网友下载。
+
 
 ### 2.5 确认运行正常
 
@@ -210,7 +222,7 @@ docker run -d \
   -v $(pwd)/abxy-data:/data \
   -e ADMIN_PASSWORD=改成你的密码 \
   -e TZ=Asia/Shanghai \
-  doulicon/abxy-arcade:latest
+  ghcr.io/doulicon/abxy-arcade:latest
 ```
 
 打开 `http://IP:30000`。
@@ -487,7 +499,7 @@ curl -s -o /dev/null -w "%{http_code} %{size_download}\n" http://127.0.0.1:30000
 镜像拉错了架构。本项目是多架构镜像，正常不会出现；如果手动指定过 tag，去掉 `--platform` 重拉即可：
 
 ```bash
-docker rmi doulicon/abxy-arcade:latest
+docker rmi ghcr.io/doulicon/abxy-arcade:latest
 docker compose pull && docker compose up -d
 ```
 
@@ -560,7 +572,7 @@ docker compose logs -f --tail=100
 ```yaml
 services:
   abxy-arcade:
-    image: "${IMAGE_NAME:-doulicon/abxy-arcade:latest}"
+    image: "${IMAGE_NAME:-ghcr.io/doulicon/abxy-arcade:latest}"
     container_name: abxy-arcade
     ports:
       - "${HOST_PORT:-30000}:3000"
@@ -603,17 +615,42 @@ docker exec -it abxy-arcade sh    # 进容器看看
 
 ## 附录 C：自己构建并发布镜像
 
-改了代码想发布自己的镜像：
+想改代码后发布自己的镜像，三种仓库任选，脚本通用。
+
+### 推送到 GitHub 容器仓库（GHCR，免费，无需额外注册）
+
+先建一个 GitHub Personal Access Token（勾 `write:packages`）：
 
 ```bash
-docker login                       # 先登录 Docker Hub
+echo "你的PAT" | docker login ghcr.io -u 你的GitHub用户名 --password-stdin
+bash scripts/build-push.sh ghcr.io/你的GitHub用户名/abxy-arcade 1.0.0
+```
+
+**推完必须手动把包设为公开**，否则别人 `docker pull` 会提示未授权：
+
+> GitHub → 你的头像 → Your packages → 找到 `abxy-arcade` → Package settings → Change visibility → Public
+
+这一步很容易漏，漏了别人拉不动。
+
+### 推送到 Docker Hub
+
+```bash
+docker login                              # 输入 Docker Hub 账号密码
 bash scripts/build-push.sh 你的用户名/abxy-arcade 1.0.0
 ```
 
-脚本会用 buildx 同时构建 amd64 + arm64 并推送三个标签：`1.0.0`、`latest`、`sha-xxxxxxx`。
-
-只想在本机构建测试、不推送：
+### 推送到阿里云 ACR（国内最快）
 
 ```bash
-bash scripts/build-push.sh 你的用户名/abxy-arcade --no-push
+docker login registry.cn-hangzhou.aliyuncs.com
+bash scripts/build-push.sh registry.cn-hangzhou.aliyuncs.com/你的命名空间/abxy-arcade 1.0.0
 ```
+
+### 只在本机测试，不推送
+
+```bash
+bash scripts/build-push.sh ghcr.io/你的用户名/abxy-arcade --no-push
+```
+
+脚本会用 buildx 同时构建 amd64 + arm64，推三个标签：`1.0.0`、`latest`、`sha-xxxxxxx`。
+需要多架构编译环境（Docker 19.03+ 自带 buildx；群晖的定制 Docker 可能没有，改用 GitHub Actions 更省心，见 `.github/workflows/docker-publish.yml`）。

@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 # ============================================
-# 构建多架构镜像并推送到 Docker Hub
+# 构建多架构镜像并推送到容器仓库（GHCR / Docker Hub / 阿里云 ACR 通用）
 #
 # 用法：
 #   bash scripts/build-push.sh <镜像名> [标签]
-#   bash scripts/build-push.sh doulicon/abxy-arcade 1.0.0
+#   bash scripts/build-push.sh ghcr.io/doulicon/abxy-arcade 1.0.0
 #
 # 也可用环境变量：
-#   IMAGE_NAME=doulicon/abxy-arcade TAG=1.0.0 bash scripts/build-push.sh
+#   IMAGE_NAME=ghcr.io/doulicon/abxy-arcade TAG=1.0.0 bash scripts/build-push.sh
 #
 # 其他参数：
 #   --platforms linux/amd64,linux/arm64   目标架构（默认两者都出）
 #   --no-push                             只在本机构建当前架构镜像并载入
 #   --no-cache                            不用构建缓存
 #
-# 前置：docker login（推送必须），以及 buildx 能力（Docker 19.03+ 自带）
+# 前置：docker login <仓库地址>（推送必须），以及 buildx（Docker 19.03+ 自带）
+#   GHCR 登录：echo $GITHUB_TOKEN | docker login ghcr.io -u 你的用户名 --password-stdin
 # ============================================
 set -euo pipefail
 
@@ -49,11 +50,14 @@ if [ -z "$IMAGE" ] && [ -f .env ]; then
 fi
 if [ -z "$IMAGE" ]; then
   echo "[错误] 请指定镜像名，例如：" >&2
-  echo "       bash scripts/build-push.sh doulicon/abxy-arcade 1.0.0" >&2
+  echo "       bash scripts/build-push.sh ghcr.io/doulicon/abxy-arcade 1.0.0" >&2
   exit 1
 fi
-# 去掉误加的 :tag 后缀，标签统一由 TAG 控制
-IMAGE="${IMAGE%%:*}"
+# 去掉误加的 :tag 后缀（只处理最后一段，避免把 registry:5000 当成标签切掉）
+TAIL="${IMAGE##*/}"
+case "$TAIL" in
+  *:*) IMAGE="${IMAGE%:*}" ;;
+esac
 
 # ---- docker 是否需要 sudo ----
 DOCKER="docker"
