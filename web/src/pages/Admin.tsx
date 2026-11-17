@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import {
+  IconCheck,
   IconDisc,
   IconEdit,
   IconGamepad,
@@ -56,6 +57,36 @@ function StatCard({
       </div>
       <p className="mt-1.5 font-pixel text-lg text-white">{value}</p>
     </div>
+  );
+}
+
+/** 表头全选复选框：部分选中时显示半选态 */
+function SelectAllBox({
+  checked,
+  indeterminate,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  indeterminate: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate && !checked;
+  }, [indeterminate, checked]);
+
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      title={label}
+      aria-label={label}
+      className="h-3.5 w-3.5 cursor-pointer accent-[#4cc9ff]"
+    />
   );
 }
 
@@ -244,6 +275,7 @@ export default function Admin() {
 
   // 批量选择
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
   const [batchDeleting, setBatchDeleting] = useState(false);
   const [batchSeriesOpen, setBatchSeriesOpen] = useState(false);
   const [batchSeriesId, setBatchSeriesId] = useState('');
@@ -271,6 +303,10 @@ export default function Admin() {
         })}`,
       );
       setGames(res);
+      // 整页被删空时自动回退，避免停在越界的空页
+      if (res.items.length === 0 && res.page > 1 && res.total > 0) {
+        setPage((p) => (p === res.page ? Math.max(1, p - 1) : p));
+      }
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t('admin.toast.gamesFail'), 'error');
     } finally {
@@ -365,7 +401,7 @@ export default function Admin() {
     }
   };
 
-  /** 批量删除选中的游戏 */
+  /** 批量删除选中的游戏（先在确认框里确认，删除会连 ROM 文件一起删） */
   const confirmBatchDelete = async () => {
     if (!selected.size) return;
     setBatchDeleting(true);
@@ -375,6 +411,7 @@ export default function Admin() {
       });
       toast(t('admin.toast.batchDeleted', { n: res.removed }), 'success');
       setSelected(new Set());
+      setBatchDeleteOpen(false);
       refreshAll();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t('admin.toast.deleteFail'), 'error');
@@ -555,6 +592,24 @@ export default function Admin() {
     </>
   );
 
+  /** 当前页的游戏 id：全选 / 取消全选都只作用于这一页，不动其它页已选的 */
+  const pageIds = games?.items.map((g) => g.id) ?? [];
+  const pageSelectedCount = pageIds.filter((id) => selected.has(id)).length;
+  const allPageSelected = pageIds.length > 0 && pageSelectedCount === pageIds.length;
+  const somePageSelected = pageSelectedCount > 0 && !allPageSelected;
+  /** 选中但不在本页的数量：跨页勾选时提示，防止误删看不见的游戏 */
+  const offPageSelected = selected.size - pageSelectedCount;
+
+  const togglePage = () => {
+    if (!pageIds.length) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-5 sm:py-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -701,8 +756,18 @@ export default function Admin() {
               {/* 批量管理工具栏 */}
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <button
+                  className="btn btn-ghost text-xs"
+                  onClick={togglePage}
+                  disabled={!pageIds.length}
+                  aria-pressed={allPageSelected}
+                  title={t('admin.batch.selectAllHint', { n: pageIds.length })}
+                >
+                  <IconCheck className="h-3.5 w-3.5" />
+                  {allPageSelected ? t('admin.batch.unselectAll') : t('admin.batch.selectAll')}
+                </button>
+                <button
                   className="btn btn-danger text-xs"
-                  onClick={confirmBatchDelete}
+                  onClick={() => setBatchDeleteOpen(true)}
                   disabled={!selected.size || batchDeleting}
                 >
                   {batchDeleting ? <Spinner className="h-3.5 w-3.5" /> : <IconTrash className="h-3.5 w-3.5" />}
@@ -718,18 +783,31 @@ export default function Admin() {
                 <span className="mx-1 h-5 w-0.5 shrink-0 bg-line/70" aria-hidden />
                 {gameFilters}
                 {selected.size > 0 && (
-                  <button
-                    className="text-[11px] font-bold text-muted hover:text-white"
-                    onClick={() => setSelected(new Set())}
-                  >
-                    {t('admin.batch.clear')}
-                  </button>
+                  <>
+                    <span className="text-[11px] text-muted">
+                      {t('admin.batch.selectedCount', { n: selected.size })}
+                      {offPageSelected > 0 ? t('admin.batch.offPage', { n: offPageSelected }) : ''}
+                    </span>
+                    <button
+                      className="text-[11px] font-bold text-muted hover:text-white"
+                      onClick={() => setSelected(new Set())}
+                    >
+                      {t('admin.batch.clear')}
+                    </button>
+                  </>
                 )}
               </div>
 
               <div className="overflow-hidden border-2 border-line bg-panel">
                 <div className="hidden grid-cols-[36px_1fr_104px_64px_72px_84px_128px] gap-3 border-b-2 border-line bg-[#101018] px-3 py-2 text-[11px] font-black tracking-wide text-muted md:grid">
-                  <span />
+                  <span className="flex items-center">
+                    <SelectAllBox
+                      checked={allPageSelected}
+                      indeterminate={somePageSelected}
+                      onChange={togglePage}
+                      label={t('admin.batch.selectAllHint', { n: pageIds.length })}
+                    />
+                  </span>
                   <span>{t('admin.th.game')}</span>
                   <span>{t('admin.th.platform')}</span>
                   <span className="text-right">{t('admin.th.plays')}</span>
@@ -1056,6 +1134,19 @@ export default function Admin() {
         busy={busy}
         onCancel={() => setDeletingUser(null)}
         onConfirm={confirmDeleteUser}
+      />
+
+      {/* 批量删除：全选后一次可能删掉整页，必须先确认 */}
+      <ConfirmDialog
+        open={batchDeleteOpen}
+        title={t('admin.confirm.batchTitle')}
+        message={
+          t('admin.confirm.batchMsg', { n: selected.size }) +
+          (offPageSelected > 0 ? t('admin.confirm.batchOffPage', { n: offPageSelected }) : '')
+        }
+        busy={batchDeleting}
+        onCancel={() => !batchDeleting && setBatchDeleteOpen(false)}
+        onConfirm={confirmBatchDelete}
       />
 
       {/* 批量归类到系列 */}
