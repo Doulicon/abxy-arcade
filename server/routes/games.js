@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
-import { db, COVER_DIR, BIOS_DIR } from '../db.js';
+import { db, COVER_DIR, BIOS_DIR, ROM_DIR } from '../db.js';
+import { lookupArcade } from '../catalog.js';
+import { buildMediaIndex, findCoverSource, importCover, coverExists } from '../media-covers.js';
 import { PLATFORMS, PLATFORM_MAP, guessPlatform } from '../platforms.js';
 import {
   saveRom,
@@ -625,6 +627,18 @@ function removeCoverFile(cover) {
   }
 }
 
+/**
+ * 从 ROM 旁边的 media/ 目录里取同名图片当封面。
+ * @param {string} romAbsPath ROM 绝对路径
+ * @param {Map<string,string>} [index] 批量场景下复用 buildMediaIndex() 的结果
+ * @returns {string} 封面 URL，没找到返回空串
+ */
+function coverFromMedia(romAbsPath, index) {
+  const src = findCoverSource(romAbsPath, index);
+  if (!src) return '';
+  return importCover(src, path.basename(romAbsPath, path.extname(romAbsPath)));
+}
+
 router.post('/admin/games', adminRequired, gameUpload, (req, res) => {
   const files = req.files || {};
   const coverFile = files.cover && files.cover[0];
@@ -632,7 +646,15 @@ router.post('/admin/games', adminRequired, gameUpload, (req, res) => {
   try {
     if (!romFile) throw new Error('请上传游戏 ROM 文件');
     const originalName = decodeOriginalName(romFile.originalname);
-    const data = parsePayload(req.body, {}, originalName);
+
+    // 街机短名（mslug.zip）自动换成中文名 + 简介；管理员填了就不覆盖
+    const meta = lookupArcade(originalName);
+    const body = { ...req.body };
+    if (meta) {
+      if (!String(body.title ?? '').trim()) body.title = meta.title;
+      if (!String(body.description ?? '').trim()) body.description = meta.description;
+    }
+    const data = parsePayload(body, {}, originalName);
 
     // ROM 落到 data/roms/<平台 id>/ 下，顺便校验格式与 romset 命名
     const saved = saveRom(romFile.path, originalName, data.platform);
@@ -640,6 +662,10 @@ router.post('/admin/games', adminRequired, gameUpload, (req, res) => {
     if (coverFile) {
       removeCoverFile(cover);
       cover = moveCover(coverFile.path, decodeOriginalName(coverFile.originalname));
+    } else if (!cover) {
+      // 没传封面：试着从 ROM 同级的 media/ 里捡一张
+      const romAbs = path.join(ROM_DIR, saved.romFile);
+      cover = coverFromMedia(romAbs) || coverFromMedia(romAbs, buildMediaIndex());
     }
 
     const info = db
@@ -1040,8 +1066,12 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
   ensureRomLayout();
   const { files: candidates, unresolved } = listRomCandidates();
   const rows = db
-    .prepare('SELECT id, title, platform, rom_file, rom_name, rom_size, rom_missing FROM games')
+    .prepare(
+      'SELECT id, title, platform, description, cover, rom_file, rom_name, rom_size, rom_missing FROM games',
+    )
     .all();
+  // 所有 media/ 目录里的图片一次性建索引，几百个 ROM 共用，别逐个翻磁盘
+  const mediaIndex = buildMediaIndex();
 
   const claimed = new Set();
   const created = [];
@@ -1049,6 +1079,7 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
   const relinked = [];
   const missing = [];
   const skipped = [];
+  const enriched = [];
 
   /** 同名文件优先取同平台的，其次任意平台（用户手工搬过目录的情况） */
   const pickFile = (base, platformId) => {
@@ -1099,7 +1130,26 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
 
     // rom_name 是上传时的原始名（街机内核靠它匹配 romset），扫描不改写，只在缺失时补上
     const nextRomName = row.rom_name || file.fileName;
+
+    // 资料补齐：街机短名换成中文名、补简介、捡 media 里的封面。
+    // 只补「空着」的字段——名称仍等于文件名（说明是默认生成的）、简介为空、没有封面，
+    // 管理员手动改过的内容一概不覆盖，所以反复扫描是安全的。
+    const meta = lookupArcade(nextRomName);
+    const defaultTitle = titleFromFileName(nextRomName);
+    const nextTitle = meta && row.title === defaultTitle ? meta.title : row.title;
+    const nextDesc = meta && !row.description ? meta.description : row.description;
+    let nextCover = row.cover;
+    const coverLost = nextCover.startsWith('/uploads/covers/') && !coverExists(nextCover);
+    if (!nextCover || coverLost) {
+      const got = coverFromMedia(file.absPath, mediaIndex);
+      if (got) nextCover = got;
+    }
+
+    const metaChanged =
+      nextTitle !== row.title || nextDesc !== row.description || nextCover !== row.cover;
+
     const changed =
+      metaChanged ||
       row.rom_missing ||
       row.rom_file !== romFile ||
       row.rom_size !== romSize ||
@@ -1111,11 +1161,20 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
 
     db.prepare(
       `UPDATE games SET rom_file = ?, rom_name = ?, rom_size = ?, rom_missing = 0,
-        updated_at = datetime('now') WHERE id = ?`,
-    ).run(romFile, nextRomName, romSize, row.id);
+        title = ?, description = ?, cover = ?, updated_at = datetime('now') WHERE id = ?`,
+    ).run(romFile, nextRomName, romSize, nextTitle, nextDesc, nextCover, row.id);
 
-    if (row.rom_missing) restored.push({ id: row.id, title: row.title, romFile });
-    else relinked.push({ id: row.id, title: row.title, romFile });
+    if (metaChanged) {
+      enriched.push({
+        id: row.id,
+        title: nextTitle,
+        hadTitle: row.title,
+        gotCover: nextCover !== row.cover && !!nextCover,
+      });
+    }
+
+    if (row.rom_missing) restored.push({ id: row.id, title: nextTitle, romFile });
+    else if (!metaChanged) relinked.push({ id: row.id, title: nextTitle, romFile });
   }
 
   // ② 剩下没被认领的文件：按默认资料新建
@@ -1132,19 +1191,31 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
     }
 
     try {
+      // 封面要在搬文件之前找：media/ 就在 ROM 原来的同级目录里
+      const media = findCoverSource(file.absPath, mediaIndex);
       const romFile = file.needsRelocate ? relocateRom(file.absPath, platform.id) : file.relPath;
       const romSize = fs.statSync(resolveRomPath(romFile) || file.absPath).size;
-      const title = titleFromFileName(file.fileName) || file.fileName;
+
+      // 街机短名查中文名 + 简介，查不到就按文件名来
+      const meta = lookupArcade(file.fileName);
+      const title = meta?.title || titleFromFileName(file.fileName) || file.fileName;
+      const description = meta?.description || '';
+      const cover = media
+        ? importCover(media, path.basename(file.fileName, path.extname(file.fileName)))
+        : '';
+
       const info = db
         .prepare(
           `INSERT INTO games (title, platform, description, cover, rom_file, rom_name, rom_size,
             core, bios_name, year, developer, publisher, genre, players, featured, rom_missing)
-           VALUES (@title, @platform, '', '', @romFile, @romName, @romSize,
+           VALUES (@title, @platform, @description, @cover, @romFile, @romName, @romSize,
             @core, @biosName, NULL, '', '', '', 1, 0, 0)`,
         )
         .run({
           title,
           platform: platform.id,
+          description,
+          cover,
           romFile,
           romName: file.fileName,
           romSize,
@@ -1157,6 +1228,8 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
         platform: platform.id,
         platformName: platform.name,
         romFile,
+        cover,
+        matched: !!meta,
       });
       claimed.add(file);
     } catch (err) {
@@ -1171,6 +1244,8 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
     relinked,
     missing,
     skipped,
+    enriched,
+    mediaFiles: mediaIndex.size,
     unresolved,
     folders: PLATFORMS.map((p) => ({ platform: p.id, name: p.name, dir: `roms/${p.id}` })),
   });

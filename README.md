@@ -187,6 +187,39 @@ data/roms/
 
 扩展名报错、`Zip is not supported` 之类，基本都是把 romset 解压成散文件了——重新压回 `romset 名.zip` 即可。
 
+### 街机短名自动变成中文名
+
+`mslug.zip`、`sf2ce.zip` 这种 romset 短名玩家看不懂。项目内置 1286 条街机对照表（`server/arcade-catalog.json`，来自 EmulationStation 的 gamelist 元数据），上传或扫描到这些文件名时自动换成中文名，简介一起带上：
+
+| ROM 文件 | 前端显示 |
+|---|---|
+| `mslug.zip` | 合金弹头 |
+| `sf2ce.zip` | 街头霸王2 四大天王 |
+| `kof97.zip` | 拳皇97 |
+| `punisher.zip` | 惩罚者 |
+
+规则：
+
+- **只补空着的字段**：标题还等于文件名、简介为空、没有封面时才填；后台手动改过的名称 / 简介 / 封面一律不覆盖，所以反复扫描是安全的。
+- 对照表里没有的（自制 ROM、新 hack）就按文件名显示，不报错。
+- 想改单条，后台编辑即可；想批量调整，直接改 `server/arcade-catalog.json`（键是文件名去掉扩展名、转小写）。
+- 数据量：1286 条，约 750 KB，随镜像分发，不联网。
+
+### 封面从 media/ 目录自动捡
+
+ROM 旁边放一个 `media/` 目录，里面放**同名图片**就会自动当封面：
+
+```
+data/roms/arcade/mslug.zip
+data/roms/arcade/media/mslug.jpg          ← 直接放
+data/roms/arcade/media/boxart/mslug.jpg   ← 藏在子目录里也行
+```
+
+- 图片名必须和 ROM 一致（不含扩展名），`jpg` 优先，`png` / `webp` 也认。
+- 扫描时把整个 `roms/` 下的 media 目录建一次索引，所以 ROM 已被搬进平台目录、media 还留在原来的分类文件夹里，照样配得上。
+- 命中后复制一份进 `data/covers/`，之后删掉 media 目录也不影响展示。
+- 没有对应图片就留空，前端显示首字占位块，其它环节照常。
+
 ### 游玩与操作
 
 - 进入游戏页后自动加载模拟器。**内核已随项目分发（`server/public/emulatorjs`，约 35MB），走本地同源加载，不依赖外网**，首次进入只需几秒。

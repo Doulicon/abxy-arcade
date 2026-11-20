@@ -487,11 +487,16 @@ export default function Admin() {
         restored: { title: string }[];
         relinked: { title: string }[];
         missing: { title: string }[];
+        enriched: { title: string; hadTitle: string; gotCover: boolean }[];
+        mediaFiles: number;
         skipped: { file: string; reason: string }[];
         unresolved: string[];
       }>('/admin/roms/scan');
       if (res.created.length) {
         toast(t('admin.toast.scanDone', { n: res.created.length }), 'success');
+      }
+      if (res.enriched?.length) {
+        toast(t('admin.toast.scanEnriched', { n: res.enriched.length }), 'info');
       }
       if (res.restored.length) {
         toast(t('admin.toast.scanRestored', { n: res.restored.length }), 'success');
@@ -499,7 +504,12 @@ export default function Admin() {
       if (res.missing.length) {
         toast(t('admin.toast.scanMissing', { n: res.missing.length }), 'info');
       }
-      if (!res.created.length && !res.restored.length && !res.missing.length) {
+      if (
+        !res.created.length &&
+        !res.restored.length &&
+        !res.missing.length &&
+        !res.enriched?.length
+      ) {
         toast(t('admin.toast.scanNone'), 'info');
       }
       if (res.skipped.length) {
