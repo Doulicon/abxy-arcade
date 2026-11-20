@@ -138,6 +138,7 @@ npm start
 
 ```
 data/roms/
+├── resources/                   # 全平台共用的封面目录（见下节）
 ├── fc/           resources/     # 红白机 ROM；resources/ 放该平台的附加资源
 ├── sfc/          resources/
 ├── gb/  gbc/  gba/  n64/  md/  nds/
@@ -150,7 +151,8 @@ data/roms/
 ```
 
 - 上传时自动落到对应平台目录（`server/roms.js` 的 `saveRom()`），文件名尽量保留原始名；街机仍是 `romset 短名.zip`。
-- `resources/` 里的文件**不会被当成游戏扫描**，用来放 BIOS 备份、系统文件、说明等。
+- `resources/` 里的文件**不会被当成游戏扫描**，用来放 BIOS 备份、系统文件、封面等。
+- 根目录的 `data/roms/resources/` 是所有平台共用的封面目录，放这里一份就能管住全部 ROM。
 - 旧版本平铺在 `data/roms/` 根目录的记录，服务启动时会自动按记录的平台搬进对应文件夹并更新数据库（`migrateRomLayout()`）。
 - 旧版本的 `nes/`、`snes/` 目录，启动时会自动迁移为 `fc/`、`sfc/`。
 
@@ -207,20 +209,23 @@ data/roms/
 
 ### 封面放 resources/，文件名对上就行
 
-每个平台目录下都预建了 `resources/`（启动时自动创建），把封面平铺丢进去即可，**不用一个游戏一个文件夹**：
+**推荐在 ROM 根目录建一份 `resources/`，所有平台共用**，街机、NEOGEO、FC 的封面都塞同一个地方，不用一个平台抄一遍：
 
 ```
-data/roms/arcade/
-├── mslug.zip
-├── mslug3.zip
-└── resources/
-     ├── mslug.jpg            ← 文件名 = ROM 名，就是封面
-     ├── mslug3.png
-     └── 精选/mslug4.webp     ← 有子文件夹也照扫
+data/roms/
+├── resources/                   ← 全平台共用，文件名对上就是封面
+│   ├── mslug.jpg                ← arcade 的合金弹头1
+│   ├── mslug3.png               ← neogeo 的合金弹头3
+│   ├── contra.jpg               ← fc 的魂斗罗
+│   └── 街机精选/boxart/batman.jpg ← 有子文件夹也照扫
+├── arcade/mslug.zip
+├── neogeo/mslug3.zip
+└── fc/contra.zip
 ```
 
 - 文件名（去掉扩展名）和 ROM 一致就命中，`jpg` / `png` / `webp` 都认，`jpg` 优先，大小写不敏感。
-- `resources/` 放在平台根目录或分类子目录下都能找到（会从 ROM 所在目录往上找两级）。
+- 一个 rom 名只对应一张图，全平台通用；同名 ROM 在不同平台（比如 `mslug.zip` 同时在 arcade 和 neogeo）会自动共用同一张。
+- 也可以只在某个平台目录下放 `resources/`，平台内的更具体、会先于全局命中；`data/roms/arcade/resources/mslug.jpg` 存在时就不看全局那张。
 - **同一游戏换了 rom 名也能共用封面**：内置 `server/cover-aliases.json`（36 条，从 gamelist 的游戏名归一化生成），`killbldp` 自己没有封面时自动借 `killbld` 的；自己有封面则优先用自己那张。
 - 照 EmulationStation 那套摆的 `media/<rom>/boxFront.jpg` 老结构也认，`logo.png` / `marquee` / `background` 这类小图不会被当成封面。
 - 命中后复制一份进 `data/covers/`，之后动 resources 目录不影响已上架的游戏。

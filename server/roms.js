@@ -67,6 +67,8 @@ export function migrateLegacyRomDirs() {
 export function ensureRomLayout() {
   fs.mkdirSync(ROM_DIR, { recursive: true });
   migrateLegacyRomDirs();
+  // roms/resources：全平台共用的封面目录，放一份就能管住所有平台
+  fs.mkdirSync(path.join(ROM_DIR, RESOURCES_DIRNAME), { recursive: true });
   for (const p of PLATFORMS) {
     fs.mkdirSync(path.join(ROM_DIR, p.id, RESOURCES_DIRNAME), { recursive: true });
   }

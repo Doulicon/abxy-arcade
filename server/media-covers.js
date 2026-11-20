@@ -7,15 +7,20 @@ import { ROM_DIR, COVER_DIR } from './db.js';
 /**
  * ROM 封面查找
  * ---------------------------------------------------------------
- * 推荐玩家把封面平铺丢进平台目录的 resources/：
+ * 最省事的一种：在 ROM 根目录建一份 resources/，所有平台共用：
  *
- *   data/roms/arcade/
- *     ├── mslug.zip
- *     ├── mslug3.zip
- *     └── resources/
- *          ├── mslug.jpg        ← 文件名 = ROM 名，就是封面
- *          ├── mslug3.png
- *          └── 合集/batman.jpg   ← 有子文件夹也照样扫
+ *   data/roms/
+ *     ├── resources/
+ *     │    ├── mslug.jpg        ← 文件名 = ROM 名，就是封面
+ *     │    ├── mslug3.png
+ *     │    └── 街机/boxart/batman.jpg   ← 有子文件夹也照样扫
+ *     ├── arcade/mslug.zip
+ *     ├── neogeo/mslug3.zip
+ *     └── fc/contra.zip
+ *
+ * 一个 rom 名在全局只对应一张图，各平台通用，不用一个平台抄一份。
+ * 也可以只在某个平台目录下放 resources/（data/roms/arcade/resources/），
+ * 平台内的更具体，会先于全局命中。
  *
  * 文件名对上就算命中，不需要一个游戏一个文件夹。同一游戏换了 rom 名
  * （killbldp 是 killbld 的加强版）自己没封面时，按 cover-aliases.json
@@ -26,6 +31,8 @@ import { ROM_DIR, COVER_DIR } from './db.js';
  */
 
 const RESOURCES_DIRNAME = 'resources';
+/** 全局封面目录在索引里的桶名（不是一个真实平台） */
+const GLOBAL_BUCKET = '_global';
 const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp'];
 /** 文件夹装封面时，这些名字优先当封面 */
 const COVER_NAMES = ['boxfront', 'boxart', 'cover', 'folder', 'front'];
@@ -265,10 +272,14 @@ export function buildMediaIndex(root = ROM_DIR) {
       const plat = platform || (dir === root ? entry.name : null);
 
       if (lower === RESOURCES_DIRNAME) {
-        const bucket = bucketFor(plat);
+        // ROM 根目录下的 resources/ 是全平台共用；平台目录里的只服务本平台
+        const isGlobal = dir === root;
+        const bucket = bucketFor(isGlobal ? GLOBAL_BUCKET : plat);
         const before = bucket.files.size;
         indexResourceDir(abs, bucket);
         count += bucket.files.size - before;
+        // 全局目录动辄上千个子文件夹，这里存下索引，查找时不再重扫一遍
+        if (isGlobal && dirBuckets) dirBuckets.set(abs, bucket);
         continue;
       }
       if (lower === 'media') {
@@ -304,10 +315,11 @@ function bucketOfDir(cache, dir) {
 
 /**
  * 给一个 ROM 找封面源文件。顺序：
- *   ① 同级 / 上级 resources 里的同名图片
- *   ② 平台 resources 索引里的同名图片（含子文件夹）
- *   ③ 别名表：改版借用正传的封面
- *   ④ 旧 media 结构（同级 → 全局）
+ *   ① 同级 / 上级 resources 里的同名图片（最近的最优先）
+ *   ② 所属平台的 resources 索引（含子文件夹）
+ *   ③ 全局 resources：roms/resources/，全平台共用一份
+ *   ④ 别名表：改版借用正传的封面（①②③ 每一层内部都先查本名再查别名）
+ *   ⑤ 旧 media 结构（同级 → 全局）
  * @param {string} romAbsPath ROM 的绝对路径
  * @param {ReturnType<typeof buildMediaIndex>} [index] 批量场景复用
  * @returns {string|null}
@@ -323,7 +335,7 @@ export function findCoverSource(romAbsPath, index) {
   const dirBuckets = index?.dirBuckets;
   const shallowCache = index?.shallowCache;
 
-  // ① 同级 resources，往上找两级（封面可能放在分类目录，也可能在平台根）
+  // ① 同级 resources，往上找两级（平台根、ROM 根都能覆盖到）
   let dir = path.dirname(romAbsPath);
   for (let i = 0; i < 3; i++) {
     const resDir = path.join(dir, RESOURCES_DIRNAME);
@@ -365,7 +377,30 @@ export function findCoverSource(romAbsPath, index) {
     }
   }
 
-  // ③ 旧 media 结构：同级 media → 全局索引
+  // ③ 全局 resources：roms/resources/，所有平台共用
+  const globalBucket =
+    index?.resources.get(GLOBAL_BUCKET) ||
+    (() => {
+      const gdir = path.join(root, RESOURCES_DIRNAME);
+      if (!fs.existsSync(gdir)) return null;
+      return dirBuckets
+        ? bucketOfDir(dirBuckets, gdir)
+        : (() => {
+            const b = { files: new Map(), dirs: new Map() };
+            indexResourceDir(gdir, b);
+            return b;
+          })();
+    })();
+  if (globalBucket) {
+    const own = pickFromBucket(globalBucket, key, imgCache);
+    if (own) return own;
+    for (const alt of aliasChain(key)) {
+      const hit = pickFromBucket(globalBucket, alt, imgCache);
+      if (hit) return hit;
+    }
+  }
+
+  // ⑤ 旧 media 结构：同级 media → 全局索引
   const siblingMedia = path.join(path.dirname(romAbsPath), 'media');
   const sameName = imgsOf(imgCache, siblingMedia).filter((abs) => baseKey(abs) === key);
   if (sameName.length) return sameName.sort((a, b) => extScore(a) - extScore(b))[0];
