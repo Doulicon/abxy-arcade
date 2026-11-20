@@ -205,20 +205,28 @@ data/roms/
 - 想改单条，后台编辑即可；想批量调整，直接改 `server/arcade-catalog.json`（键是文件名去掉扩展名、转小写）。
 - 数据量：1286 条，约 750 KB，随镜像分发，不联网。
 
-### 封面从 media/ 目录自动捡
+### 封面放 resources/，文件名对上就行
 
-ROM 旁边放一个 `media/` 目录，里面放**同名图片**就会自动当封面：
+每个平台目录下都预建了 `resources/`（启动时自动创建），把封面平铺丢进去即可，**不用一个游戏一个文件夹**：
 
 ```
-data/roms/arcade/mslug.zip
-data/roms/arcade/media/mslug.jpg          ← 直接放
-data/roms/arcade/media/boxart/mslug.jpg   ← 藏在子目录里也行
+data/roms/arcade/
+├── mslug.zip
+├── mslug3.zip
+└── resources/
+     ├── mslug.jpg            ← 文件名 = ROM 名，就是封面
+     ├── mslug3.png
+     └── 精选/mslug4.webp     ← 有子文件夹也照扫
 ```
 
-- 图片名必须和 ROM 一致（不含扩展名），`jpg` 优先，`png` / `webp` 也认。
-- 扫描时把整个 `roms/` 下的 media 目录建一次索引，所以 ROM 已被搬进平台目录、media 还留在原来的分类文件夹里，照样配得上。
-- 命中后复制一份进 `data/covers/`，之后删掉 media 目录也不影响展示。
-- 没有对应图片就留空，前端显示首字占位块，其它环节照常。
+- 文件名（去掉扩展名）和 ROM 一致就命中，`jpg` / `png` / `webp` 都认，`jpg` 优先，大小写不敏感。
+- `resources/` 放在平台根目录或分类子目录下都能找到（会从 ROM 所在目录往上找两级）。
+- **同一游戏换了 rom 名也能共用封面**：内置 `server/cover-aliases.json`（36 条，从 gamelist 的游戏名归一化生成），`killbldp` 自己没有封面时自动借 `killbld` 的；自己有封面则优先用自己那张。
+- 照 EmulationStation 那套摆的 `media/<rom>/boxFront.jpg` 老结构也认，`logo.png` / `marquee` / `background` 这类小图不会被当成封面。
+- 命中后复制一份进 `data/covers/`，之后动 resources 目录不影响已上架的游戏；封面为空的条目再扫一次会自动补上。
+- 都找不到就留空，前端显示首字占位块，其它环节照常。
+
+内置对照表 1286 条 + 别名 36 条，fbneo 那套 1477 个 romset 基本能自动配齐；表里没有的自制 ROM 按文件名显示，封面后台手动传即可。
 
 ### 游玩与操作
 

@@ -1245,7 +1245,7 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
     missing,
     skipped,
     enriched,
-    mediaFiles: mediaIndex.files.size + mediaIndex.dirs.size,
+    mediaFiles: mediaIndex.count,
     unresolved,
     folders: PLATFORMS.map((p) => ({ platform: p.id, name: p.name, dir: `roms/${p.id}` })),
   });
