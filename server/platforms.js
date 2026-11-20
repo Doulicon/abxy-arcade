@@ -4,7 +4,12 @@
  * emulatorCore 对应 EmulatorJS 的系统名（EJS_core），与 id 解耦：FC 的 EJS 系统名仍是 nes。
  * exts 用于上传校验，EmulatorJS 可直接读取 zip（内部同名 rom）。
  */
+/**
+ * 数组顺序 = 首页平台卡片、后台下拉的默认顺序（后台按权重调整时会覆盖）。
+ * 想改默认顺位就调这里的先后，不要在别处再写一套顺序。
+ */
 export const PLATFORMS = [
+  // 1
   {
     id: 'fc',
     name: 'FC / 红白机',
@@ -14,33 +19,22 @@ export const PLATFORMS = [
     color: '#e8453c',
     exts: ['.nes', '.unf', '.unif', '.zip'],
   },
+  // 2
   {
-    id: 'sfc',
-    name: 'SFC / 超任',
-    short: 'SFC',
-    emulatorCore: 'snes',
-    core: 'snes9x',
-    color: '#8f6fd6',
-    exts: ['.sfc', '.smc', '.fig', '.zip'],
+    id: 'neogeo',
+    name: 'NEOGEO / 街机',
+    short: 'NEOGEO',
+    emulatorCore: 'arcade',
+    core: 'fbneo',
+    cores: ['fbneo'],
+    color: '#f5c518',
+    exts: ['.zip'],
+    romsetName: true,
+    // 需要 neogeo.zip 作为 BIOS，缺了会黑屏
+    bios: 'neogeo.zip',
+    hint: '必须先上传 BIOS（neogeo.zip）；ROM 文件名需为 romset 短名（如 mslug.zip）',
   },
-  {
-    id: 'gb',
-    name: 'Game Boy',
-    short: 'GB',
-    emulatorCore: 'gb',
-    core: 'gambatte',
-    color: '#9bbc0f',
-    exts: ['.gb', '.zip'],
-  },
-  {
-    id: 'gbc',
-    name: 'Game Boy Color',
-    short: 'GBC',
-    emulatorCore: 'gb',
-    core: 'gambatte',
-    color: '#e0b03a',
-    exts: ['.gbc', '.zip'],
-  },
+  // 3
   {
     id: 'gba',
     name: 'Game Boy Advance',
@@ -50,6 +44,27 @@ export const PLATFORMS = [
     color: '#5b4bcd',
     exts: ['.gba', '.zip'],
   },
+  // 4
+  {
+    id: 'sfc',
+    name: 'SFC / 超任',
+    short: 'SFC',
+    emulatorCore: 'snes',
+    core: 'snes9x',
+    color: '#8f6fd6',
+    exts: ['.sfc', '.smc', '.fig', '.zip'],
+  },
+  // 5
+  {
+    id: 'gbc',
+    name: 'Game Boy Color',
+    short: 'GBC',
+    emulatorCore: 'gb',
+    core: 'gambatte',
+    color: '#e0b03a',
+    exts: ['.gbc', '.zip'],
+  },
+  // 6
   {
     id: 'n64',
     name: 'Nintendo 64',
@@ -59,6 +74,7 @@ export const PLATFORMS = [
     color: '#3aa657',
     exts: ['.n64', '.z64', '.v64', '.zip'],
   },
+  // 7
   {
     id: 'md',
     name: 'MD / 世嘉五代',
@@ -68,6 +84,7 @@ export const PLATFORMS = [
     color: '#2f7fd6',
     exts: ['.md', '.gen', '.smd', '.bin', '.zip'],
   },
+  // 8
   {
     id: 'nds',
     name: 'Nintendo DS',
@@ -77,6 +94,7 @@ export const PLATFORMS = [
     color: '#c94f7c',
     exts: ['.nds', '.zip'],
   },
+  // 9
   {
     id: 'arcade',
     name: 'Arcade / 街机',
@@ -93,19 +111,15 @@ export const PLATFORMS = [
     bios: '',
     hint: 'romset 需与 FBNeo 版本匹配；文件名必须是 romset 短名（如 mslug.zip），不要改名或解压',
   },
+  // 10
   {
-    id: 'neogeo',
-    name: 'NEOGEO / 街机',
-    short: 'NEOGEO',
-    emulatorCore: 'arcade',
-    core: 'fbneo',
-    cores: ['fbneo'],
-    color: '#f5c518',
-    exts: ['.zip'],
-    romsetName: true,
-    // 需要 neogeo.zip 作为 BIOS，缺了会黑屏
-    bios: 'neogeo.zip',
-    hint: '必须先上传 BIOS（neogeo.zip）；ROM 文件名需为 romset 短名（如 mslug.zip）',
+    id: 'gb',
+    name: 'Game Boy',
+    short: 'GB',
+    emulatorCore: 'gb',
+    core: 'gambatte',
+    color: '#9bbc0f',
+    exts: ['.gb', '.zip'],
   },
 ];
 
