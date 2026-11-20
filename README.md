@@ -223,7 +223,8 @@ data/roms/arcade/
 - `resources/` 放在平台根目录或分类子目录下都能找到（会从 ROM 所在目录往上找两级）。
 - **同一游戏换了 rom 名也能共用封面**：内置 `server/cover-aliases.json`（36 条，从 gamelist 的游戏名归一化生成），`killbldp` 自己没有封面时自动借 `killbld` 的；自己有封面则优先用自己那张。
 - 照 EmulationStation 那套摆的 `media/<rom>/boxFront.jpg` 老结构也认，`logo.png` / `marquee` / `background` 这类小图不会被当成封面。
-- 命中后复制一份进 `data/covers/`，之后动 resources 目录不影响已上架的游戏；封面为空的条目再扫一次会自动补上。
+- 命中后复制一份进 `data/covers/`，之后动 resources 目录不影响已上架的游戏。
+- **封面优先级：后台自己上传的图 > resources 里自动匹配的默认图。** 上传过的封面会被记成「手动」，之后扫描 ROM 一律不碰；自动匹配的那张每次扫描都会跟 resources 对一遍，你把图换成更好的会跟着更新，删了图则保留原来的。
 - 都找不到就留空，前端显示首字占位块，其它环节照常。
 
 内置对照表 1286 条 + 别名 36 条，fbneo 那套 1477 个 romset 基本能自动配齐；表里没有的自制 ROM 按文件名显示，封面后台手动传即可。

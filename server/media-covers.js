@@ -403,3 +403,17 @@ export function importCover(imagePath, romKey = 'cover') {
   fs.copyFileSync(imagePath, path.join(COVER_DIR, filename));
   return `/uploads/covers/${filename}`;
 }
+
+/**
+ * 源图指纹：路径 + 字节数 + 修改时间。
+ * 扫描时拿它和数据库里存的比较，图没换过就沿用原封面，不会每次扫描都复制一堆新文件。
+ */
+export function coverFingerprint(imagePath) {
+  if (!imagePath) return '';
+  try {
+    const st = fs.statSync(imagePath);
+    return `${imagePath}|${st.size}|${Math.round(st.mtimeMs)}`;
+  } catch {
+    return '';
+  }
+}

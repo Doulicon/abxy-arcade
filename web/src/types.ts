@@ -30,6 +30,8 @@ export type Game = {
   emulatorCore: string;
   description: string;
   cover: string;
+  /** 'auto' = 扫描 ROM 时自动匹配的封面；'manual' = 自己上传/填链接的封面（扫描不覆盖） */
+  coverSource?: 'auto' | 'manual' | '';
   year: number | null;
   developer: string;
   publisher: string;

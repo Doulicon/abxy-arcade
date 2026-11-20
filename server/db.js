@@ -116,6 +116,37 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_games_weight ON games(weight DESC)');
 ensureColumn('games', 'series_id', 'series_id INTEGER');
 db.exec('CREATE INDEX IF NOT EXISTS idx_games_series ON games(series_id)');
 
+/**
+ * 封面来源：
+ *   ''       = 没有封面
+ *   'auto'   = 扫描 ROM 时从 resources/ 自动匹配来的默认封面，可以随时被更好的图替换
+ *   'manual' = 管理员/玩家自己上传或填了 URL 的封面，扫描永远不覆盖
+ */
+ensureColumn('games', 'cover_source', "cover_source TEXT NOT NULL DEFAULT ''");
+/** 自动封面的来源指纹（源图路径 + 大小 + 修改时间）：resources 里的图换了才重新导入，没换就沿用 */
+ensureColumn('games', 'cover_auto_key', "cover_auto_key TEXT NOT NULL DEFAULT ''");
+
+// 老库补来源标记：自动导入的封面名形如 mslug3-Ab3xk9.jpg（ROM 名 + 6 位随机），
+// 手动上传的是 14 位纯随机名，据此把历史数据分回两类，避免升级后误判
+{
+  const AUTO_RE = /^(.+)-[A-Za-z0-9_-]{6}\.[a-z0-9]+$/i;
+  const legacy = db
+    .prepare("SELECT id, cover, rom_name, rom_file FROM games WHERE cover_source = '' AND cover <> ''")
+    .all();
+  const setSource = db.prepare('UPDATE games SET cover_source = ? WHERE id = ?');
+  const keyOf = (row) =>
+    String(row.rom_name || row.rom_file || '')
+      .replace(/\.[^.]*$/, '')
+      .replace(/[^A-Za-z0-9_-]/g, '')
+      .toLowerCase();
+  for (const row of legacy) {
+    const base = String(row.cover).split('/').pop() || '';
+    const m = base.match(AUTO_RE);
+    const auto = !!m && !!keyOf(row) && m[1].toLowerCase() === keyOf(row);
+    setSource.run(auto ? 'auto' : 'manual', row.id);
+  }
+}
+
 /** 游戏系列：管理员维护，含封面 / 名称 / 简介 / 类型 / 平台 / 权重 */
 db.exec(`
 CREATE TABLE IF NOT EXISTS series (

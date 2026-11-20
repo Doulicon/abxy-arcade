@@ -270,6 +270,13 @@ export default function AdminGameForm({ open, initial, platforms, onClose, onSav
               <IconX className="h-3 w-3" /> {t('form.coverRemove')}
             </button>
           )}
+          {!coverFile && (
+            <p className="mt-1.5 text-[10px] leading-relaxed text-white/35">
+              {initial?.cover && initial.coverSource === 'auto'
+                ? t('form.coverAutoHint')
+                : t('form.coverPriorityHint')}
+            </p>
+          )}
         </div>
 
         {/* 表单字段 */}
