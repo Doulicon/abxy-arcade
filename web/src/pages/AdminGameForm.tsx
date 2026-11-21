@@ -224,7 +224,7 @@ export default function AdminGameForm({ open, initial, platforms, onClose, onSav
         <div>
           <span className="label">{t('form.cover')}</span>
           <div
-            className="relative aspect-video w-full cursor-pointer overflow-hidden border-2 border-line bg-[#0f0f16] transition-colors hover:border-neon"
+            className="relative aspect-[400/567] w-full cursor-pointer overflow-hidden border-2 border-line bg-[#0f0f16] transition-colors hover:border-neon"
             onClick={() => coverInput.current?.click()}
           >
             {preview ? (

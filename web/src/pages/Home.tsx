@@ -233,7 +233,7 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
             {featuredSeries.map((s, i) => (
               <SeriesCard key={`fs-${s.id}`} series={s} index={i} />
             ))}

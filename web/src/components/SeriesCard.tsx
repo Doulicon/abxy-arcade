@@ -13,7 +13,7 @@ function splitGenres(genre: string) {
 }
 
 /**
- * 系列卡片：与游戏卡同规格，上方 16:9 封面，下方名称 + 类型标签。
+ * 系列卡片：与游戏卡同规格，上方竖版封面（400:567），下方名称 + 类型标签。
  * 平台标签在图片右下角（与游戏卡片一致），精选星标左上。
  */
 export function SeriesCard({ series, index = 0 }: { series: Series; index?: number }) {
@@ -89,7 +89,7 @@ export function SeriesCard({ series, index = 0 }: { series: Series; index?: numb
           </h3>
 
           {genres.length > 0 && (
-            <div className="flex flex-nowrap gap-1 overflow-hidden" title={series.genre}>
+            <div className="flex shrink-0 flex-nowrap gap-1 overflow-hidden" title={series.genre}>
               {genres.map((g) => (
                 <span key={g} className="genre-chip">
                   {g}

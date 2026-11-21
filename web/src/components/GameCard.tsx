@@ -14,7 +14,7 @@ function splitGenres(genre: string) {
 }
 
 /**
- * 游戏卡片（横向）：上方 16:9 横图（贴近显示器比例，直接传截图即可），
+ * 游戏卡片（竖版）：上方竖版封面（400:567，街机海报的常见比例，直接传原图即可），
  * 下方 68px 文字区：游戏名（两行截断）+ 最多两枚类型标签。
  * 平台标签在图片右下角，精选星标左上，缺 ROM 提示右上。
  */
@@ -85,7 +85,7 @@ export function GameCard({ game, index = 0 }: { game: Game; index?: number }) {
           </h3>
 
           {genres.length > 0 && (
-            <div className="flex flex-nowrap gap-1 overflow-hidden" title={game.genre}>
+            <div className="flex shrink-0 flex-nowrap gap-1 overflow-hidden" title={game.genre}>
               {genres.map((g) => (
                 <span key={g} className="genre-chip">
                   {g}

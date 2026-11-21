@@ -96,8 +96,8 @@ export default function SeriesDetail() {
 
       <div className="mx-auto w-full max-w-[1240px] px-4 sm:px-5">
         <div className="relative -mt-16 flex flex-col gap-5 sm:-mt-20 sm:flex-row sm:items-end sm:gap-7">
-          <div className="w-full shrink-0 sm:w-[300px] lg:w-[380px]">
-            <div className="relative aspect-video overflow-hidden border-2 border-white/20 shadow-[8px_8px_0_0_rgba(0,0,0,.6)]">
+          <div className="w-[52%] max-w-[190px] shrink-0 sm:w-[200px] sm:max-w-none lg:w-[248px]">
+            <div className="relative aspect-[400/567] overflow-hidden border-2 border-white/20 shadow-[8px_8px_0_0_rgba(0,0,0,.6)]">
               {series.cover ? (
                 <img src={series.cover} alt={series.name} className="h-full w-full object-cover" />
               ) : (
@@ -129,7 +129,7 @@ export default function SeriesDetail() {
               </span>
             </div>
 
-            <h1 className="mt-2 text-2xl font-black leading-tight text-white sm:text-3xl lg:text-4xl">
+            <h1 className="mt-2 text-xl font-black leading-tight text-white sm:text-[26px] lg:text-[30px]">
               {series.name}
             </h1>
 
@@ -152,7 +152,7 @@ export default function SeriesDetail() {
           {games.length === 0 ? (
             <EmptyState title={t('series.empty')} description={t('series.emptyDesc')} />
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
               {games.map((game, i) => (
                 <GameCard key={game.id} game={game} index={i} />
               ))}
