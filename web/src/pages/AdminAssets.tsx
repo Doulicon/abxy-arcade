@@ -155,7 +155,11 @@ export default function AdminAssets() {
               <div key={slot.key} className="flex flex-col border-2 border-line bg-panel">
                 <div
                   className={`relative overflow-hidden border-b-2 border-line bg-[#04101f] ${
-                    slot.key.startsWith('platform_') ? 'aspect-square' : 'aspect-[16/9]'
+                    slot.key.startsWith('platform_')
+                      ? 'aspect-square'
+                      : slot.key === 'game_placeholder'
+                        ? 'aspect-[400/567]'
+                        : 'aspect-[16/9]'
                   }`}
                 >
                   {slot.url ? (
