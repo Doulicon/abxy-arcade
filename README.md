@@ -31,6 +31,21 @@ docker compose up -d
 
 镜像地址 `ghcr.io/doulicon/abxy-arcade:latest`，同时支持 amd64 与 arm64，公开可拉。国内直连较慢时，把地址前缀换成 `ghcr.nju.edu.cn`（详见 `DEPLOY.md` 第 2.4 节）。
 
+### 方式 0.5：离线安装包（不能联网 / 拉不动镜像时）
+
+镜像直接打包在压缩包里，全程不访问网络，适合内网机器、拉不动 GHCR 的玩家：
+
+```bash
+# 解压后（Windows 双击 start.bat 也行）
+cd abxy-arcade-offline-1.1.0
+sudo sh install.sh            # 默认端口 30000，数据放 ./data
+sudo sh install.sh 8080       # 换端口
+```
+
+包里带 amd64 与 arm64 两个镜像（各约 123 MB）和一份 `README.txt`，脚本会自己认架构。缺点是包比较大（约 245 MB），网盘下载比 `docker pull` 慢。
+
+自己做一个新的：`bash scripts/make-offline-bundle.sh 1.1.0`（需要本机已有 `abxy-arcade:1.1.0` 和 `abxy-arm64:1.1.0` 两个镜像）。
+
 ### 方式 A：Docker Compose 源码构建（要改代码时用）
 
 ```bash

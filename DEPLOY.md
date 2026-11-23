@@ -179,6 +179,33 @@ cd /opt/abxy && docker compose -f docker-compose.image.yml up -d
 
 > `docker load` 之后本地镜像名就是 `ghcr.io/doulicon/abxy-arcade:latest`，与 compose 默认值一致，不用改任何配置。
 
+**现成的离线包（推荐给不会用命令的人）**
+
+`scripts/make-offline-bundle.sh` 把镜像、一键脚本、图文说明打成一个 zip，拿到的人解压就能装，不需要懂 `docker save`：
+
+```bash
+# 在已经有镜像的构建机上执行（需要 abxy-arcade:1.1.0 和 abxy-arm64:1.1.0 两个镜像）
+bash scripts/make-offline-bundle.sh 1.1.0
+# 产物：release/offline-1.1.0/abxy-arcade-offline-1.1.0.zip（双架构约 245 MB）
+```
+
+包内结构：
+
+```
+abxy-arcade-offline-1.1.0/
+├── images/abxy-arcade-1.1.0-amd64.tar.gz    123 MB
+├── images/abxy-arcade-1.1.0-arm64.tar.gz    123 MB
+├── install.sh          Linux / 群晖 / 威联通：sudo sh install.sh
+├── start.bat           Windows：双击
+├── docker-compose.yml  给熟悉 compose 的人
+├── README.txt          图文说明（UTF-8 BOM，记事本直接看）
+└── SHA256SUMS.txt      校验值
+```
+
+两个架构的 tar 里镜像名**都是** `abxy-arcade:<版本>`，脚本按 `uname -m` 自动选包，ARM 机型不用手动改任何东西。真要只出一个架构：`--arch amd64`。
+
+> 打包时会把镜像临时 retag 成 `abxy-arcade:<版本>` 再 save，完成后自动恢复原指向。这一步不能省——否则 arm64 包导入后会覆盖 amd64 的 tag，玩家在 x86 机器上会看到 `platform (linux/arm64) does not match` 的告警，容器起不来。
+
 **如果是 `unauthorized` 而不是超时**
 
 那不是网络问题，是仓库被设成了私有（只有发布者能改，见帖子里的说明），或者干脆用办法三离线导入。

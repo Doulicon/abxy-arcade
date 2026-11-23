@@ -26,3 +26,6 @@ docker-entrypoint.sh text eol=lf
 # Windows 批处理必须保持 CRLF
 *.bat   text eol=crlf
 *.cmd   text eol=crlf
+
+# 离线安装包里的说明给 Windows 记事本看，必须 CRLF
+scripts/offline/README.txt text eol=crlf
