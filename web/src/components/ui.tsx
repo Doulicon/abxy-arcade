@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useAsset } from '../assets';
 import { useI18n } from '../i18n';
@@ -179,13 +179,41 @@ export function PlatformBadge({
   );
 }
 
-/** 封面组件：没有封面时优先用后台设置的占位图，其次用平台配色生成像素占位图 */
-export function GameCover({ game, className = '' }: { game: Game; className?: string }) {
+/**
+ * 封面组件：没有封面时优先用后台设置的占位图，其次用平台配色生成像素占位图。
+ *
+ * frameRatio 是外层牌面的宽高比（游戏卡 400:567）。封面比例跟牌面差得多时，
+ * 铺满裁切会把卡盒边缘和标题切掉（GBA/NDS 的方图要裁 30%，N64 的横图要裁 50%），
+ * 这时改成完整显示，空出来的地方垫一层同图放大虚化的底：
+ * 网格还是整齐的，图也不残缺。差 15% 以内照旧铺满裁切，FC/SFC/MD/街机等于零变化。
+ */
+export function GameCover({
+  game,
+  className = '',
+  frameRatio = 400 / 567,
+}: {
+  game: Game;
+  className?: string;
+  frameRatio?: number;
+}) {
   const [broken, setBroken] = useState(false);
+  const [fit, setFit] = useState(false);
   const placeholder = useAsset('game_placeholder');
   const color = game.platformColor || '#4cc9ff';
 
-  useEffect(() => setBroken(false), [game.cover]);
+  useEffect(() => {
+    setBroken(false);
+    setFit(false);
+  }, [game.cover]);
+
+  // 图片自身宽高比与牌面差超过 15% 就改完整显示，不写死平台表：
+  // 换一套封面包、或某平台混进比例不对的图，也能自己兜住。
+  function handleLoad(e: SyntheticEvent<HTMLImageElement>) {
+    const { naturalWidth, naturalHeight } = e.currentTarget;
+    if (!naturalWidth || !naturalHeight) return;
+    const ratio = naturalWidth / naturalHeight;
+    setFit(Math.abs(ratio - frameRatio) / frameRatio > 0.15);
+  }
 
   if (!game.cover && placeholder) {
     return (
@@ -199,11 +227,28 @@ export function GameCover({ game, className = '' }: { game: Game; className?: st
   }
 
   if (game.cover && !broken) {
+    if (fit) {
+      return (
+        <div className="relative h-full w-full overflow-hidden">
+          <img src={game.cover} alt="" aria-hidden="true" loading="lazy" className="cover-echo" />
+          <img
+            src={game.cover}
+            alt={game.title}
+            loading="lazy"
+            onLoad={handleLoad}
+            onError={() => setBroken(true)}
+            className={`relative h-full w-full object-contain ${className}`}
+          />
+        </div>
+      );
+    }
+
     return (
       <img
         src={game.cover}
         alt={game.title}
         loading="lazy"
+        onLoad={handleLoad}
         onError={() => setBroken(true)}
         className={`h-full w-full object-cover ${className}`}
       />

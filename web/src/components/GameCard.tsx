@@ -17,6 +17,9 @@ function splitGenres(genre: string) {
  * 游戏卡片（竖版）：上方竖版封面（400:567，街机海报的常见比例，直接传原图即可），
  * 下方 68px 文字区：游戏名（两行截断）+ 最多两枚类型标签。
  * 平台标签在图片右下角，精选星标左上，缺 ROM 提示右上。
+ *
+ * 比例差异大的封面（GBA/NDS 方图、N64 横图）会自动改成完整显示 + 同图虚化底，
+ * 牌面高度不变，所以网格始终整齐 —— 具体判断在 GameCover 里。
  */
 export function GameCard({ game, index = 0 }: { game: Game; index?: number }) {
   const { t } = useI18n();

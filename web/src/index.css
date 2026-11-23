@@ -580,6 +580,37 @@ textarea {
 }
 
 /* ------------------------------------------------------------------
+   比例差异大的封面（GBA/NDS 的方图、N64 的横图）改用 object-contain 完整显示，
+   空出来的地方垫一层同图放大虚化的底，避免白块/黑边。
+   四周外扩 8% + 轻微放大，是为了盖住 blur 在边缘产生的透明羽化。
+   ------------------------------------------------------------------ */
+.cover-echo {
+  position: absolute;
+  left: -8%;
+  top: -8%;
+  width: 116%;
+  height: 116%;
+  object-fit: cover;
+  filter: blur(14px) saturate(1.1) brightness(0.5);
+  transform: scale(1.04);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* 浅色主题里压暗会变成脏灰，改成略微提亮再降不透明度 */
+html[data-theme='light'] .cover-echo {
+  filter: blur(14px) saturate(0.9) brightness(1.06);
+  opacity: 0.55;
+}
+
+/* 窄屏卡片只有 170px 宽，模糊半径按像素算会显得过重，顺手也省点 GPU */
+@media (max-width: 640px) {
+  .cover-echo {
+    filter: blur(9px) saturate(1.1) brightness(0.5);
+  }
+}
+
+/* ------------------------------------------------------------------
    首页 Hero 背景：桌面端按原图比例整宽铺开（不裁切），自然延伸到平台卡片后面；
    窄屏放不下这个比例时退回填充 Banner 区，避免上下露底
    ------------------------------------------------------------------ */
