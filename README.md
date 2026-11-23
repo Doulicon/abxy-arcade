@@ -152,7 +152,7 @@ data/roms/
 
 - 上传时自动落到对应平台目录（`server/roms.js` 的 `saveRom()`），文件名尽量保留原始名；街机仍是 `romset 短名.zip`。
 - `resources/` 里的文件**不会被当成游戏扫描**，用来放 BIOS 备份、系统文件、封面等。
-- 根目录的 `data/roms/resources/` 是所有平台共用的封面目录，放这里一份就能管住全部 ROM。
+- 封面/素材放在哪都行（`resources/`、`media/`、`boxart/` 或任意目录名），识别规则见下面「封面」一节。
 - 旧版本平铺在 `data/roms/` 根目录的记录，服务启动时会自动按记录的平台搬进对应文件夹并更新数据库（`migrateRomLayout()`）。
 - 旧版本的 `nes/`、`snes/` 目录，启动时会自动迁移为 `fc/`、`sfc/`。
 
@@ -189,50 +189,48 @@ data/roms/
 
 扩展名报错、`Zip is not supported` 之类，基本都是把 romset 解压成散文件了——重新压回 `romset 名.zip` 即可。
 
-### 街机短名自动变成中文名
+### ROM 自动换中文名 + 补简介
 
-`mslug.zip`、`sf2ce.zip` 这种 romset 短名玩家看不懂。项目内置 1286 条街机对照表（`server/arcade-catalog.json`，来自 EmulationStation 的 gamelist 元数据），上传或扫描到这些文件名时自动换成中文名，简介一起带上：
+`mslug.zip`、`sf2ce.zip` 这种 romset 短名玩家看不懂；`洛克人2[NeoX汉化](JP)[ACT](2Mb).zip` 这种文件名也没法看。项目内置 **3174 条**各平台游戏资料（`server/game-metadata.json`，整理自 Pegasus 元数据），覆盖 FC / SFC / MD / GB / GBC / GBA / N64 / NDS / 街机，上传或扫描时自动匹配中文名和简介：
 
 | ROM 文件 | 前端显示 |
 |---|---|
 | `mslug.zip` | 合金弹头 |
-| `sf2ce.zip` | 街头霸王2 四大天王 |
-| `kof97.zip` | 拳皇97 |
-| `punisher.zip` | 惩罚者 |
+| `赤色要塞.zip` | 赤色要塞 |
+| `超级马里奥兄弟1 3D版.zip` | 超级马里奥兄弟1 3D版 |
+| `口袋妖怪 心金.nds` | 口袋妖怪 心金 |
 
-规则：
+匹配规则：
 
-- **只补空着的字段**：标题还等于文件名、简介为空、没有封面时才填；后台手动改过的名称 / 简介 / 封面一律不覆盖，所以反复扫描是安全的。
-- 对照表里没有的（自制 ROM、新 hack）就按文件名显示，不报错。
-- 想改单条，后台编辑即可；想批量调整，直接改 `server/arcade-catalog.json`（键是文件名去掉扩展名、转小写）。
-- 数据量：1286 条，约 750 KB，随镜像分发，不联网。
+- 先按文件名精确比，再按去掉 `[汉化]` `(JP)` `[ACT]` `(2Mb)` 这些标签后的名字比，最后按中文名反查（资料库里 file 是英文、title 是中文时也能对上）。
+- **只补空着的字段**：标题还等于文件名时才替换，简介为空时才填；后台改过的名称 / 简介 / 封面一律不覆盖，所以反复扫描是安全的。
+- 资料库里没有的（自制 ROM、新 hack）就按文件名显示，不报错。
+- 想改单条，后台编辑即可；想批量调整或换新数据，改 `scripts/build-game-meta.mjs` 里的源文件清单后跑 `node scripts/build-game-meta.mjs`，重启自动重灌数据库。
+- 数据落 `game_meta` 表（3174 条），查找走内存索引，扫描几千个 ROM 不用反复查库。
+- 老的街机对照表 `server/arcade-catalog.json`（1286 条）仍然保留，作为最后的兜底。
 
-### 封面放 resources/，文件名对上就行
+### 封面：图名对上、或者文件夹名对上就行
 
-**推荐在 ROM 根目录建一份 `resources/`，所有平台共用**，街机、NEOGEO、FC 的封面都塞同一个地方，不用一个平台抄一遍：
+**不挑目录名**。资源包可能是 EmulationStation 那套 `media/<游戏>/boxFront.jpg`，也可能是 `resources/`、`boxart/`、`images/`，甚至叫「封面」「素材库」，都不用改，扔进 `data/roms/` 就能扫到：
 
 ```
 data/roms/
-├── resources/                   ← 全平台共用，文件名对上就是封面
-│   ├── mslug.jpg                ← arcade 的合金弹头1
-│   ├── mslug3.png               ← neogeo 的合金弹头3
-│   ├── contra.jpg               ← fc 的魂斗罗
-│   └── 街机精选/boxart/batman.jpg ← 有子文件夹也照扫
-├── arcade/mslug.zip
-├── neogeo/mslug3.zip
-└── fc/contra.zip
+├── fc/
+│   ├── 魂斗罗.zip
+│   ├── 魂斗罗.jpg                        ← ① 图跟 ROM 同名
+│   ├── 随便什么名字/魂斗罗/boxFront.jpg     ← ② 文件夹跟 ROM 同名
+│   └── media/魂斗罗/cover.png             ← ②' 目录叫 media / boxart / images 都行
+└── 我的素材库/mslug/boxFront.jpg           ← 放 ROM 根目录下，全平台共用
 ```
 
-- 文件名（去掉扩展名）和 ROM 一致就命中，`jpg` / `png` / `webp` 都认，`jpg` 优先，大小写不敏感。
-- 一个 rom 名只对应一张图，全平台通用；同名 ROM 在不同平台（比如 `mslug.zip` 同时在 arcade 和 neogeo）会自动共用同一张。
-- 也可以只在某个平台目录下放 `resources/`，平台内的更具体、会先于全局命中；`data/roms/arcade/resources/mslug.jpg` 存在时就不看全局那张。
-- **同一游戏换了 rom 名也能共用封面**：内置 `server/cover-aliases.json`（36 条，从 gamelist 的游戏名归一化生成），`killbldp` 自己没有封面时自动借 `killbld` 的；自己有封面则优先用自己那张。
-- 照 EmulationStation 那套摆的 `media/<rom>/boxFront.jpg` 老结构也认，`logo.png` / `marquee` / `background` 这类小图不会被当成封面。
-- 命中后复制一份进 `data/covers/`，之后动 resources 目录不影响已上架的游戏。
-- **封面优先级：后台自己上传的图 > resources 里自动匹配的默认图。** 上传过的封面会被记成「手动」，之后扫描 ROM 一律不碰；自动匹配的那张每次扫描都会跟 resources 对一遍，你把图换成更好的会跟着更新，删了图则保留原来的。
+- **只认两种规则**：图片名跟 ROM 同名，或者文件夹名跟 ROM 同名（文件夹里放 `boxFront` / `boxart` / `cover` / `folder` 这类统一名字）。目录本身叫什么无所谓，最多往里翻 6 层。
+- 「同名」包含去掉标签：ROM 叫 `洛克人2[NeoX汉化](JP)[ACT](2Mb).zip`，资源文件夹只写 `洛克人2` 也能对上。
+- 优先级：**后台传的图 > 同名文件夹里的图 > 同名图片 > 离 ROM 远的图**；本平台目录优先于 ROM 根目录下的共用素材。
+- `logo.png` / `background.png` / `marquee` / `wheel` 这类明确不是封面的跳过；文件夹里只有一张 `1.png` 也认，只有截图时垫底使用。
+- 内部有 36 条别名（`killbldp` 借 `killbld` 的封面），改版不用单独配图。
+- 命中后复制一份进 `data/covers/`，之后动素材目录不影响已上架的游戏。
+- 自动匹配的那张每次扫描都会跟素材目录对一遍，你把图换成更好的会跟着更新，删了图则保留原来的；后台传过的封面记成「手动」，扫描一律不碰。
 - 都找不到就留空，前端显示首字占位块，其它环节照常。
-
-内置对照表 1286 条 + 别名 36 条，fbneo 那套 1477 个 romset 基本能自动配齐；表里没有的自制 ROM 按文件名显示，封面后台手动传即可。
 
 ### 游玩与操作
 

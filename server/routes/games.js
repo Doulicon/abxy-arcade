@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import { db, COVER_DIR, BIOS_DIR, ROM_DIR } from '../db.js';
-import { lookupArcade } from '../catalog.js';
+import { lookupGameMeta } from '../game-meta.js';
 import {
   buildMediaIndex,
   findCoverSource,
@@ -636,6 +636,31 @@ function removeCoverFile(cover) {
 }
 
 /**
+ * 把内置资料库里匹配到的信息填进表单字段。
+ * 只填名称和简介——年份/厂商/类型这套数据里有不少脏值（"n/a"、把厂商名填进类型），
+ * 不如留空让管理员填。填过的内容一律不动。
+ * @param {Object} body 表单对象（会被就地修改）
+ * @param {ReturnType<typeof lookupGameMeta>} meta
+ */
+function fillBodyFromMeta(body, meta) {
+  if (!meta) return;
+  const blank = (v) => String(v ?? '').trim() === '';
+  if (blank(body.title) && meta.title) body.title = meta.title;
+  if (blank(body.description) && meta.description) body.description = meta.description;
+}
+
+/**
+ * 扫描已登记条目时算新资料：名称仍是默认文件名才替换，简介空着才补。
+ * 管理员/玩家改过的内容一概不覆盖。
+ */
+function mergeMeta(row, meta, defaultTitle) {
+  return {
+    title: meta && meta.title && row.title === defaultTitle ? meta.title : row.title,
+    description: meta && !row.description ? meta.description : row.description,
+  };
+}
+
+/**
  * 从 ROM 旁边的 resources/ 里取同名图片当封面。
  * @param {string} romAbsPath ROM 绝对路径
  * @param {Object} [index] 批量场景下复用 buildMediaIndex() 的结果
@@ -658,13 +683,11 @@ router.post('/admin/games', adminRequired, gameUpload, (req, res) => {
     if (!romFile) throw new Error('请上传游戏 ROM 文件');
     const originalName = decodeOriginalName(romFile.originalname);
 
-    // 街机短名（mslug.zip）自动换成中文名 + 简介；管理员填了就不覆盖
-    const meta = lookupArcade(originalName);
+    // 街机短名（mslug.zip）换成中文名 + 简介；各平台的资料库也在这里匹配。
+    // 管理员填过的字段一律不覆盖，只补空缺。
     const body = { ...req.body };
-    if (meta) {
-      if (!String(body.title ?? '').trim()) body.title = meta.title;
-      if (!String(body.description ?? '').trim()) body.description = meta.description;
-    }
+    const guessId = String(body.platform ?? '').trim() || guessPlatform(originalName) || '';
+    fillBodyFromMeta(body, lookupGameMeta(originalName, guessId));
     const data = parsePayload(body, {}, originalName);
 
     // ROM 落到 data/roms/<平台 id>/ 下，顺便校验格式与 romset 命名
@@ -1164,13 +1187,14 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
     // rom_name 是上传时的原始名（街机内核靠它匹配 romset），扫描不改写，只在缺失时补上
     const nextRomName = row.rom_name || file.fileName;
 
-    // 资料补齐：街机短名换成中文名、补简介、捡 media 里的封面。
+    // 资料补齐：用内置资料库补中文名、简介、年份、厂商、类型、封面。
     // 只补「空着」的字段——名称仍等于文件名（说明是默认生成的）、简介为空、没有封面，
     // 管理员手动改过的内容一概不覆盖，所以反复扫描是安全的。
-    const meta = lookupArcade(nextRomName);
+    const meta = lookupGameMeta(nextRomName, targetPlatform);
     const defaultTitle = titleFromFileName(nextRomName);
-    const nextTitle = meta && row.title === defaultTitle ? meta.title : row.title;
-    const nextDesc = meta && !row.description ? meta.description : row.description;
+    const merged = mergeMeta(row, meta, defaultTitle);
+    const nextTitle = merged.title;
+    const nextDesc = merged.description;
 
     // 封面：玩家自己上传的（cover_source = 'manual'）永远不动；
     // 自动匹配的每次都跟 resources/ 对一遍，图换了就换新封面，图删了就留着旧的。
@@ -1254,8 +1278,8 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
       const romFile = file.needsRelocate ? relocateRom(file.absPath, platform.id) : file.relPath;
       const romSize = fs.statSync(resolveRomPath(romFile) || file.absPath).size;
 
-      // 街机短名查中文名 + 简介，查不到就按文件名来
-      const meta = lookupArcade(file.fileName);
+      // 用内置资料库查中文名 + 简介；查不到就按文件名来
+      const meta = lookupGameMeta(file.fileName, platform.id);
       const title = meta?.title || titleFromFileName(file.fileName) || file.fileName;
       const description = meta?.description || '';
       const cover = media

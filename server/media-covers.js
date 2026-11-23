@@ -3,59 +3,50 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nanoid } from 'nanoid';
 import { ROM_DIR, COVER_DIR } from './db.js';
+import { PLATFORM_MAP, guessPlatformFromName } from './platforms.js';
 
 /**
  * ROM 封面查找
  * ---------------------------------------------------------------
- * 玩家拷进来的资源包有几种常见摆法，全部支持：
+ * 玩家的资源包结构不可预知，目录可能叫 resources、media、boxart、images，
+ * 也可能叫「封面」「艺术图」或者任何名字，所以这里不认目录名，只认两种规则：
  *
- *   A. 一个游戏一个文件夹，里面放统一名字的图（EmulationStation 风格）
- *      data/roms/fc/resources/contra/boxFront.jpg
- *      data/roms/arcade/resources/mslug/boxart/boxFront.png
+ *   ① 图跟 ROM 同名              roms/fc/魂斗罗.jpg
+ *   ② 文件夹跟 ROM 同名，里面放封面  roms/fc/media/魂斗罗/boxFront.jpg
  *
- *   B. 图直接以 ROM 名命名，扁平或按分类分文件夹
- *      data/roms/fc/resources/contra.jpg
- *      data/roms/resources/mslug3.png        ← 全平台共用一份
+ * 往 ROM 根目录下一扔就行，目录名字随便，层数不超过 6 层都能翻到：
  *
- *   C. 图就扔在 ROM 旁边，或者放在平台目录下的 media / boxart / images 里
- *      data/roms/fc/contra.png
- *      data/roms/fc/media/contra/boxFront.jpg
+ *   roms/
+ *     fc/
+ *       魂斗罗/魂斗罗.zip
+ *       随便什么名字/魂斗罗/boxFront.png     ← 命中（文件夹同名）
+ *       另一个名字/魂斗罗.jpg                ← 命中（图同名）
+ *     resources/
+ *       动作街机/mslug/boxFront.jpg          ← 全平台共用，街机 NEOGEO 都认
  *
- * 命名也只认两种：跟 ROM 同名，或者统一叫 boxFront / boxart / cover / folder。
- * 同一个文件夹里有 logo.png、background.png 这类杂图会自动跳过，只挑封面。
+ * 同名文件夹里优先挑 boxFront / boxart / cover / folder 这类名字，其次挑
+ * 跟 ROM 同名的，最后实在只有一张图也认；logo / background / marquee 这些
+ * 明确不是封面的跳过。
  *
- * 查找顺序（越具体越优先）：
- *   ① ROM 所在目录逐级往上找 resources/（最近的先）
- *   ② 该平台的 resources/（ROM 平铺在 roms 根时靠它兜底）
- *   ③ 全局 resources/：roms/resources/
- *   ④ ROM 同级：同名图片、同名文件夹、media / boxart / images 等常见目录
- * 每一层都是先查本名、再查 cover-aliases.json 里的别名（改版借正传封面）。
- *
- * 玩家自己上传的封面（cover_source = 'manual'）在扫描逻辑里直接跳过，
- * 优先级高于上面一切自动匹配。
+ * 排序：同名文件夹 > 同名图片；同类型里离 ROM 越近越优先；本平台 > 全局。
+ * 玩家自己上传的封面（cover_source = 'manual'）优先级最高，扫描时直接跳过。
  */
 
-const RESOURCES_DIRNAME = 'resources';
-/** 全局封面目录在索引里的桶名（不是一个真实平台） */
-const GLOBAL_BUCKET = '_global';
 const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp'];
-
-/** 一个游戏一个文件夹时，这些名字优先当封面 */
+/** 全局桶：ROM 根目录下不属于任何平台的资源目录（resources、media 之类） */
+const GLOBAL_BUCKET = '_global';
+/** 同名文件夹里，这些名字优先当封面 */
 const COVER_NAMES = ['boxfront', 'boxart', 'box-art', 'cover', 'folder', 'front', 'jacket', 'poster'];
-/** 这些不是封面，直接跳过 */
+/** 这些图不是封面，直接跳过 */
 const NOT_COVER = new Set([
   'logo', 'background', 'bg', 'marquee', 'wheel', 'video', 'manual', 'instructions', 'readme', 'support',
 ]);
 /** 是图片但不是封面的（截图、标题图），没有更好的选择时才用 */
 const WEAK_NAMES = ['screenshot', 'screenshots', 'snap', 'thumb', 'thumbnail', 'title', 'fanart', 'mix', 'map'];
-
-/** ROM 同级这些目录算资源目录，各种前端/整合包的命名都覆盖到 */
-const MEDIA_DIRNAMES = ['resources', 'media', 'boxart', 'images', 'covers', 'snap', 'thumbnails', 'artwork'];
-/** 遍历 ROM 目录时这些目录里不会有 ROM，只有资源，直接跳过 */
-const SKIP_DIRS = new Set([
-  ...MEDIA_DIRNAMES,
-  'bios', 'bioses', 'assets', 'tmp', 'videos', 'manuals', 'fanart', 'wheels', 'music',
-]);
+/** 这些目录里不会有封面，递归时整棵跳过（只影响性能，不影响正确性） */
+const SKIP_DIRS = new Set(['bios', 'bioses', 'videos', 'manuals', 'wheels', 'music', 'tmp', 'assets']);
+/** 递归深度上限：整合包再深也就 4-5 层 */
+const MAX_DEPTH = 6;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ALIAS_FILE = path.join(HERE, 'cover-aliases.json');
@@ -93,17 +84,23 @@ function isImage(name) {
   return IMAGE_EXTS.includes(path.extname(name).toLowerCase());
 }
 
-function isDir(abs) {
-  try {
-    return fs.statSync(abs).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
 function baseKey(fileOrDir) {
   const base = path.basename(String(fileOrDir).replace(/\\/g, '/'));
   return path.basename(base, path.extname(base)).toLowerCase();
+}
+
+/**
+ * 宽松键：去掉 [汉化] (JP) [ACT] 这类标签和空格标点。
+ * 玩家的资源包文件夹通常只写游戏名（「洛克人2」），ROM 却叫
+ * 「洛克人2[NeoX汉化](JP)[ACT](2Mb).zip」，光靠原名对不上，用这层兜住。
+ */
+function looseKey(fileOrDir) {
+  const base = path.basename(String(fileOrDir).replace(/\\/g, '/'));
+  return path
+    .basename(base, path.extname(base))
+    .replace(/[（(\[【][^)）\]】]*[)）\]】]/g, '')
+    .replace(/[\s\-_:：·.,，。'"!?！？~～/\\|]/g, '')
+    .toLowerCase();
 }
 
 function extScore(abs) {
@@ -111,13 +108,9 @@ function extScore(abs) {
   return ext === '.jpg' || ext === '.jpeg' ? 0 : ext === '.png' ? 1 : 2;
 }
 
-function byExt(list) {
-  return [...list].sort((a, b) => extScore(a) - extScore(b));
-}
-
 /** 递归收集目录下的图片文件 */
 function listImages(dir, out = [], depth = 0) {
-  if (depth > 6) return out; // 资源目录里嵌套再深也不至于超过 6 层
+  if (depth > 6) return out;
   let entries = [];
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -127,16 +120,17 @@ function listImages(dir, out = [], depth = 0) {
   for (const entry of entries) {
     if (entry.name.startsWith('.')) continue;
     const abs = path.join(dir, entry.name);
-    if (entry.isDirectory()) listImages(abs, out, depth + 1);
-    else if (entry.isFile() && isImage(entry.name)) out.push(abs);
+    if (entry.isDirectory()) {
+      if (SKIP_DIRS.has(entry.name.toLowerCase())) continue;
+      listImages(abs, out, depth + 1);
+    } else if (entry.isFile() && isImage(entry.name)) {
+      out.push(abs);
+    }
   }
   return out;
 }
 
-/**
- * 带缓存的 listImages。批量扫描时同一个 resources 目录会被上千个 ROM 查到，
- * 不缓存就是上千次重复递归，扫描直接卡死。
- */
+/** 带缓存的 listImages：同一目录被上千个 ROM 查到时只扫一次 */
 function imgsOf(cache, dir) {
   if (!cache) return listImages(dir);
   if (!cache.has(dir)) cache.set(dir, listImages(dir));
@@ -150,235 +144,133 @@ function pushTo(map, key, value) {
 }
 
 /**
- * 一个文件夹里的图排个序：跟 ROM 同名 > boxFront > boxart/cover/folder > 随便一张 > 截图。
- * 返回排好序的绝对路径数组，调用方取第一张。
+ * 一个文件夹里的图打分：跟 ROM 同名 > boxFront > boxart/cover/folder > 随便一张 > 截图。
+ * 分数越低越优先。
  */
-function rankImages(imgs, key) {
-  return [...imgs].sort((a, b) => coverRank(a, key) - coverRank(b, key));
-}
-
 function coverRank(abs, key) {
   const base = baseKey(abs);
   const ext = extScore(abs);
-  if (key && base === key) return ext; // 和 ROM 同名，最准
-  if (base.startsWith('boxfront')) return 10 + ext; // boxFront / boxFront2 / boxfront.jpg
+  if (key && base === key) return ext;
+  if (base.startsWith('boxfront')) return 10 + ext;
   const i = COVER_NAMES.indexOf(base);
   if (i >= 0) return 20 + i * 4 + ext;
-  if (COVER_NAMES.some((n) => base.startsWith(n))) return 50 + ext; // boxart01.png 这类
-  if (WEAK_NAMES.some((n) => base.includes(n))) return 200 + ext; // 截图、标题图垫底
-  return 100 + ext; // 只有一张图、名字又没规律（1.png）也认
+  if (COVER_NAMES.some((n) => base.startsWith(n))) return 50 + ext;
+  if (WEAK_NAMES.some((n) => base.includes(n))) return 200 + ext;
+  return 100 + ext;
 }
 
-/** 某个文件夹里挑一张封面；只有 logo/背景图时返回 null */
-function pickFromGameDir(dir, cache, key) {
+/** 某个文件夹里挑一张封面；只有 logo / 背景图时返回 null */
+function pickFromFolder(dir, cache, key) {
   const imgs = imgsOf(cache, dir).filter((abs) => {
     const base = baseKey(abs);
     if (NOT_COVER.has(base)) return false;
-    if (base.startsWith('logo')) return false; // logo.png / logo2.png / logo_small.png
+    if (base.startsWith('logo')) return false;
     if (base.startsWith('background')) return false;
     return true;
   });
   if (!imgs.length) return null;
-  return rankImages(imgs, key)[0];
+  return imgs.sort((a, b) => coverRank(a, key) - coverRank(b, key))[0];
+}
+
+/** 候选目录离 ROM 所在目录几步（越近越可能是这个游戏的资源） */
+function dirDistance(from, to) {
+  const rel = path.relative(from, to);
+  if (!rel) return 0;
+  return rel.split(path.sep).filter(Boolean).length;
+}
+
+function bucketFor(buckets, id) {
+  if (!buckets.has(id)) buckets.set(id, { files: new Map(), dirs: new Map() });
+  return buckets.get(id);
 }
 
 /**
- * 在一个「同名文件夹 / 同名图片」索引里查 key。
- * 同名文件夹优先（文件夹是为这一个游戏专门备的，内容更准），没有再退回同名图片。
- */
-function pickFromBucket(bucket, key, cache) {
-  if (!bucket || !key) return null;
-  const dirs = bucket.dirs.get(key);
-  if (dirs && dirs.length) {
-    for (const d of dirs) {
-      const hit = pickFromGameDir(d, cache, key);
-      if (hit) return hit;
-    }
-  }
-  const files = bucket.files.get(key);
-  if (files && files.length) return byExt(files)[0];
-  return null;
-}
-
-/** 先查本名，再按别名表查改版借正传的封面 */
-function lookupBucket(bucket, key, cache) {
-  if (!bucket) return null;
-  const own = pickFromBucket(bucket, key, cache);
-  if (own) return own;
-  for (const alt of aliasChain(key)) {
-    const hit = pickFromBucket(bucket, alt, cache);
-    if (hit) return hit;
-  }
-  return null;
-}
-
-/** 把 resources/ 里的图片按文件名建索引，子文件夹里的也收进来 */
-function indexResourceDir(dir, bucket, depth = 0) {
-  if (depth > 4) return;
-  let entries = [];
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    if (entry.name.startsWith('.')) continue;
-    const abs = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      // 「一个游戏一个文件夹」的结构：contra/ 里可能有 boxFront.jpg
-      pushTo(bucket.dirs, entry.name.toLowerCase(), abs);
-      indexResourceDir(abs, bucket, depth + 1);
-    } else if (entry.isFile() && isImage(entry.name)) {
-      pushTo(bucket.files, baseKey(abs), abs);
-    }
-  }
-}
-
-/** 只扫一层：本层图片 + 本层子目录（同名文件夹），用于 ROM 同级匹配 */
-function flatBucketOf(dir) {
-  const bucket = { files: new Map(), dirs: new Map() };
-  let entries = [];
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return bucket;
-  }
-  for (const entry of entries) {
-    if (entry.name.startsWith('.')) continue;
-    const abs = path.join(dir, entry.name);
-    if (entry.isDirectory()) pushTo(bucket.dirs, entry.name.toLowerCase(), abs);
-    else if (entry.isFile() && isImage(entry.name)) pushTo(bucket.files, baseKey(abs), abs);
-  }
-  return bucket;
-}
-
-/** 平台目录名：roms/<平台 id>/... 的第一段 */
-function platformOf(absPath, root) {
-  const rel = path.relative(root, absPath);
-  if (!rel || rel.startsWith('..')) return null;
-  const first = rel.split(path.sep)[0];
-  return first && !first.includes('.') ? first : null;
-}
-
-/** 取某个 resources 目录的索引，批量场景下同一个目录只扫一次 */
-function bucketOfDir(cache, dir) {
-  if (cache.has(dir)) return cache.get(dir);
-  const bucket = { files: new Map(), dirs: new Map() };
-  indexResourceDir(dir, bucket);
-  cache.set(dir, bucket);
-  return bucket;
-}
-
-/** 取某个目录单层索引，用于 ROM 同级查找 */
-function flatOf(cache, dir) {
-  if (cache.has(dir)) return cache.get(dir);
-  const bucket = flatBucketOf(dir);
-  cache.set(dir, bucket);
-  return bucket;
-}
-
-/**
- * 扫一遍 ROM 根目录，把 resources/ 与旧 media/ 里的封面建成索引，一次扫描供几百个 ROM 复用。
- * @returns {{root:string, resources:Map, files:Map, dirs:Map, count:number}}
+ * 扫一遍 ROM 根目录，把封面按「平台 + 文件名」建索引，一次扫描供几百个 ROM 复用。
+ * 只要图片文件名或所在文件夹名能跟 ROM 对上就收，不看目录叫什么。
  */
 export function buildMediaIndex(root = ROM_DIR) {
-  const resources = new Map(); // 平台 id -> { files: Map<key, string[]>, dirs: Map<key, string[]> }
-  const files = new Map(); // 旧 media：mslug -> .../media/mslug.jpg
-  const dirs = new Map(); // 旧 media：mslug -> .../media/mslug
-  const imgCache = new Map(); // 目录 -> 图片列表，避免重复递归
-  const dirBuckets = new Map(); // resources 目录 -> 已建好的索引
+  const buckets = new Map(); // 平台 id（或 _global）-> { files: Map<key, {abs,dir}[]>, dirs: Map<key, abs[]> }
+  const imgCache = new Map();
   let count = 0;
 
-  const bucketFor = (platform) => {
-    const id = platform || '_';
-    if (!resources.has(id)) resources.set(id, { files: new Map(), dirs: new Map() });
-    return resources.get(id);
-  };
-
-  const collectMedia = (mediaDir) => {
-    for (const img of imgsOf(imgCache, mediaDir)) {
-      const key = baseKey(img);
-      if (!files.has(key)) {
-        files.set(key, img);
-        count++;
-      }
-    }
-    const scanDirs = (dir, depth) => {
-      if (depth > 3) return;
-      let entries = [];
-      try {
-        entries = fs.readdirSync(dir, { withFileTypes: true });
-      } catch {
-        return;
-      }
-      for (const entry of entries) {
-        if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-        const abs = path.join(dir, entry.name);
-        const key = entry.name.toLowerCase();
-        if (!dirs.has(key)) {
-          dirs.set(key, abs);
-          count++;
-        }
-        scanDirs(abs, depth + 1);
-      }
-    };
-    scanDirs(mediaDir, 0);
-  };
-
   const walk = (dir, depth, platform) => {
-    if (depth > 4) return;
+    if (depth > MAX_DEPTH) return;
     let entries = [];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch {
       return;
     }
+    const bucket = bucketFor(buckets, platform || GLOBAL_BUCKET);
+
     for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      if (entry.name.startsWith('.')) continue;
       const abs = path.join(dir, entry.name);
       const lower = entry.name.toLowerCase();
-      const plat = platform || (dir === root ? entry.name : null);
 
-      if (lower === RESOURCES_DIRNAME) {
-        // ROM 根目录下的 resources/ 是全平台共用；平台目录里的只服务本平台
-        const isGlobal = dir === root;
-        const bucket = bucketFor(isGlobal ? GLOBAL_BUCKET : plat);
-        const before = bucket.files.size;
-        indexResourceDir(abs, bucket);
-        count += bucket.files.size - before;
-        // 全局目录动辄上千个子文件夹，这里存下索引，查找时不再重扫一遍
-        if (isGlobal && dirBuckets) dirBuckets.set(abs, bucket);
-        continue;
+      if (entry.isDirectory()) {
+        if (SKIP_DIRS.has(lower)) continue;
+        // 目录名也进索引：它是「一个游戏一个文件夹」的候选，查找时看里面有没有封面
+        if (depth > 0) {
+          pushTo(bucket.dirs, lower, abs);
+          const loose = looseKey(entry.name);
+          if (loose && loose !== lower) pushTo(bucket.dirs, loose, abs);
+        }
+        walk(abs, depth + 1, platform);
+      } else if (entry.isFile() && isImage(entry.name)) {
+        const item = { abs, dir };
+        pushTo(bucket.files, baseKey(abs), item);
+        const loose = looseKey(entry.name);
+        if (loose && loose !== baseKey(abs)) pushTo(bucket.files, loose, item);
+        count++;
       }
-      if (lower === 'media') {
-        collectMedia(abs);
-        continue; // media 内部不再往下找
-      }
-      if (SKIP_DIRS.has(lower)) continue;
-      walk(abs, depth + 1, plat);
     }
   };
 
-  walk(root, 0, null);
-  return {
-    root,
-    resources,
-    files,
-    dirs,
-    count,
-    imgCache,
-    dirBuckets,
-    flatCache: new Map(),
-  };
+  let rootEntries = [];
+  try {
+    rootEntries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    rootEntries = [];
+  }
+  for (const entry of rootEntries) {
+    if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+    const abs = path.join(root, entry.name);
+    const lower = entry.name.toLowerCase();
+    if (SKIP_DIRS.has(lower)) continue;
+
+    // 第一层：是平台目录就归该平台，否则（resources / media / 任意名字）全平台共用
+    const pid = PLATFORM_MAP.has(lower) ? lower : guessPlatformFromName(entry.name);
+    walk(abs, 1, pid || null);
+  }
+
+  return { root, buckets, imgCache, count };
+}
+
+/** 收集某个键的全部候选，带上来源层级与距离，统一排序 */
+function collect(bucket, key, romDir, cache, out, weight) {
+  if (!bucket || !key) return;
+
+  // 同名文件夹：里面挑一张
+  const folderDirs = bucket.dirs.get(key);
+  if (folderDirs) {
+    for (const folder of folderDirs) {
+      const hit = pickFromFolder(folder, cache, key);
+      if (hit) out.push({ abs: hit, score: weight + dirDistance(romDir, folder) * 30 });
+    }
+  }
+
+  // 同名图片
+  const files = bucket.files.get(key);
+  if (files) {
+    for (const f of files) {
+      out.push({ abs: f.abs, score: weight + 100 + dirDistance(romDir, f.dir) * 30 + extScore(f.abs) });
+    }
+  }
 }
 
 /**
- * 给一个 ROM 找封面源文件。顺序：
- *   ① ROM 所在目录逐级往上找 resources/（最近的优先）
- *   ② 该平台的 resources/（ROM 平铺在 roms 根时靠它兜底）
- *   ③ 全局 resources/：roms/resources/
- *   ④ ROM 同级：同名图片、同名文件夹、media / boxart / images 等常见目录
- * 每层内部先查本名，再查 cover-aliases.json 里的别名。
+ * 给一个 ROM 找封面源文件。
  * @param {string} romAbsPath ROM 的绝对路径
  * @param {ReturnType<typeof buildMediaIndex>} [index] 批量场景复用
  * @returns {string|null}
@@ -388,70 +280,37 @@ export function findCoverSource(romAbsPath, index) {
   const key = baseKey(romAbsPath);
   if (!key) return null;
 
-  const root = index?.root || ROM_DIR;
-  const platform = platformOf(romAbsPath, root);
-  const imgCache = index?.imgCache;
-  const dirBuckets = index?.dirBuckets || new Map();
-  const flatCache = index?.flatCache || new Map();
+  const idx = index || buildMediaIndex();
   const romDir = path.dirname(romAbsPath);
+  const rel = path.relative(idx.root, romAbsPath);
+  const first = rel && !rel.startsWith('..') ? rel.split(path.sep)[0].toLowerCase() : '';
+  const platformId = PLATFORM_MAP.has(first) ? first : guessPlatformFromName(first) || '';
 
-  // ① ROM 所在目录逐级往上找 resources/：子目录 → 平台目录 → ROM 根，最近的先
-  let dir = romDir;
-  for (let i = 0; i < 3; i++) {
-    const resDir = path.join(dir, RESOURCES_DIRNAME);
-    if (isDir(resDir)) {
-      const hit = lookupBucket(bucketOfDir(dirBuckets, resDir), key, imgCache);
-      if (hit) return hit;
-    }
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
+  const out = [];
+  const cache = idx.imgCache;
 
-  // ② 平台 resources 索引（ROM 直接躺在 roms 根时，① 扫不到自己的平台目录）
-  if (index && platform) {
-    const hit = lookupBucket(index.resources.get(platform), key, imgCache);
-    if (hit) return hit;
-  }
+  // 精确名优先，去掉 [汉化] 标签的宽松名其次
+  const loose = looseKey(romAbsPath);
+  const keys = loose && loose !== key ? [key, loose] : [key];
 
-  // ③ 全局 resources：roms/resources/，所有平台共用一份
-  if (index) {
-    const hit = lookupBucket(index.resources.get(GLOBAL_BUCKET), key, imgCache);
-    if (hit) return hit;
-  } else {
-    const gdir = path.join(root, RESOURCES_DIRNAME);
-    if (isDir(gdir)) {
-      const hit = lookupBucket(bucketOfDir(dirBuckets, gdir), key, imgCache);
-      if (hit) return hit;
-    }
-  }
+  keys.forEach((k, keyIndex) => {
+    const base = keyIndex * 150; // 宽松名匹配排在精确名之后
+    // ① 本平台：同名文件夹 > 同名图片
+    if (platformId) collect(idx.buckets.get(platformId), k, romDir, cache, out, base);
+    // ② 全平台共用目录（roms/resources 这类），排在平台后面
+    collect(idx.buckets.get(GLOBAL_BUCKET), k, romDir, cache, out, base + 400);
+  });
 
-  // ④ ROM 同级：同名图片 / 同名文件夹 / media、boxart、images 等常见资源目录
-  dir = romDir;
-  for (let i = 0; i < 3; i++) {
-    const hit = lookupBucket(flatOf(flatCache, dir), key, imgCache);
-    if (hit) return hit;
+  // ③ 别名：改版没有自己的图时借用正传的
+  aliasChain(key).forEach((alt, i) => {
+    const w = 1000 * (i + 1);
+    if (platformId) collect(idx.buckets.get(platformId), alt, romDir, cache, out, w);
+    collect(idx.buckets.get(GLOBAL_BUCKET), alt, romDir, cache, out, w + 400);
+  });
 
-    // 常见资源目录单独看一层，允许里面是「同名文件夹」或「同名图片」
-    for (const name of MEDIA_DIRNAMES) {
-      if (name === RESOURCES_DIRNAME) continue; // ① 已经查过
-      const sub = path.join(dir, name);
-      if (!isDir(sub)) continue;
-      const hit2 = lookupBucket(bucketOfDir(dirBuckets, sub), key, imgCache);
-      if (hit2) return hit2;
-    }
-
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-
-  // ⑤ 老索引兜底：扫描时收集到的旧 media 目录
-  if (!index) return null;
-  if (index.files.has(key)) return index.files.get(key);
-  const legacyDir = index.dirs.get(key);
-  if (legacyDir) return pickFromGameDir(legacyDir, imgCache, key);
-  return null;
+  if (!out.length) return null;
+  out.sort((a, b) => a.score - b.score);
+  return out[0].abs;
 }
 
 /** 封面 URL 指向的文件是否还在（批量删封面后数据库可能还留着旧值） */
