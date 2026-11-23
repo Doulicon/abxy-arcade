@@ -182,7 +182,7 @@ export function PlatformBadge({
 /**
  * 封面组件：没有封面时优先用后台设置的占位图，其次用平台配色生成像素占位图。
  *
- * frameRatio 是外层牌面的宽高比（游戏卡 400:567）。封面比例跟牌面差得多时，
+ * frameRatio 是外层牌面的宽高比（游戏卡 3:4）。封面比例跟牌面差得多时，
  * 铺满裁切会把卡盒边缘和标题切掉（GBA/NDS 的方图要裁 30%，N64 的横图要裁 50%），
  * 这时改成完整显示，空出来的地方垫一层同图放大虚化的底：
  * 网格还是整齐的，图也不残缺。差 15% 以内照旧铺满裁切，FC/SFC/MD/街机等于零变化。
@@ -190,7 +190,7 @@ export function PlatformBadge({
 export function GameCover({
   game,
   className = '',
-  frameRatio = 400 / 567,
+  frameRatio = 3 / 4,
 }: {
   game: Game;
   className?: string;
@@ -337,7 +337,7 @@ export function Pagination({
 
 export function SkeletonGrid({ count = 12 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3.5 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="border-2 border-line/70 bg-panel/60">
           <div className="skeleton aspect-[3/4] w-full" />

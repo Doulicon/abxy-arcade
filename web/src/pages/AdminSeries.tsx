@@ -303,7 +303,7 @@ function SeriesForm({
         {/* 封面 */}
         <div>
           <span className="label">{t('admin.series.cover')}</span>
-          <label className="relative block aspect-[400/567] w-full cursor-pointer overflow-hidden border-2 border-line bg-[#0f0f16] transition-colors hover:border-neon">
+          <label className="relative block aspect-[3/4] w-full cursor-pointer overflow-hidden border-2 border-line bg-[#0f0f16] transition-colors hover:border-neon">
             {preview ? (
               <img src={preview} alt="" className="h-full w-full object-cover" />
             ) : (

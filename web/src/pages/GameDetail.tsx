@@ -140,7 +140,7 @@ export default function GameDetail() {
         <div className="relative -mt-20 flex flex-col gap-5 sm:-mt-24 sm:flex-row sm:gap-7">
           {/* 与卡片一致：竖版封面 400:567，移动端占一半宽，不铺满整屏 */}
           <div className="w-[52%] max-w-[190px] shrink-0 sm:w-[200px] sm:max-w-none lg:w-[248px]">
-            <div className="relative aspect-[400/567] overflow-hidden border-2 border-white/20 shadow-[8px_8px_0_0_rgba(0,0,0,.6)]">
+            <div className="relative aspect-[3/4] overflow-hidden border-2 border-white/20 shadow-[8px_8px_0_0_rgba(0,0,0,.6)]">
               <GameCover game={game} />
             </div>
             <div className="mt-3 flex items-center justify-between border-2 border-line bg-panel px-2.5 py-2 text-[11px]">
@@ -330,7 +330,7 @@ export default function GameDetail() {
               <h2 className="text-lg font-black text-white">{t('game.relatedTitle')}</h2>
               <span className="text-[11px] text-muted">/ {game.platformName}</span>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
               {related.map((g, i) => (
                 <GameCard key={g.id} game={g} index={i} />
               ))}

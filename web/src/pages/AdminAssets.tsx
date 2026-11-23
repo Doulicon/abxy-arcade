@@ -158,7 +158,7 @@ export default function AdminAssets() {
                     slot.key.startsWith('platform_')
                       ? 'aspect-square'
                       : slot.key === 'game_placeholder'
-                        ? 'aspect-[400/567]'
+                        ? 'aspect-[3/4]'
                         : 'aspect-[16/9]'
                   }`}
                 >
