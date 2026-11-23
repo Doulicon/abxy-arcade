@@ -196,7 +196,16 @@ export function migrateRomLayout(log = () => {}) {
   return moved + relinked;
 }
 
-/** 递归列目录，跳过 resources 子目录 */
+/**
+ * 这些子目录里放的是封面/素材，不是 ROM，递归扫描时整棵跳过。
+ * 玩家扔进来的整合包（EmulationStation / Batocera）就是这种结构。
+ */
+const NON_ROM_SUBDIRS = new Set([
+  RESOURCES_DIRNAME, 'media', 'boxart', 'images', 'covers', 'snap', 'thumbnails',
+  'artwork', 'videos', 'manuals', 'fanart', 'wheels',
+]);
+
+/** 递归列目录，跳过封面/素材子目录 */
 function walk(dir, out = [], depth = 0) {
   if (depth > 4) return out; // 防止异常深的目录把扫描拖死
   let entries = [];
@@ -209,7 +218,7 @@ function walk(dir, out = [], depth = 0) {
     if (entry.name.startsWith('.')) continue;
     const abs = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name === RESOURCES_DIRNAME) continue;
+      if (NON_ROM_SUBDIRS.has(entry.name.toLowerCase())) continue;
       walk(abs, out, depth + 1);
     } else if (entry.isFile()) {
       out.push(abs);
@@ -219,7 +228,7 @@ function walk(dir, out = [], depth = 0) {
 }
 
 /** 根目录下这些是数据目录（不是 ROM 合集），扫描时跳过 */
-const NON_ROM_DIRS = new Set(['covers', 'bios', 'assets', 'tmp', RESOURCES_DIRNAME]);
+const NON_ROM_DIRS = new Set([...NON_ROM_SUBDIRS, 'bios', 'bioses', 'assets', 'tmp']);
 
 /**
  * 扫描磁盘上所有 ROM 文件。
