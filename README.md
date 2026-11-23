@@ -44,7 +44,9 @@ sudo sh install.sh            # 默认端口 30000，数据放 ./data
 sudo sh install.sh 8080       # 换端口
 ```
 
-包里带 amd64 与 arm64 两个镜像（各约 123 MB）和一份 `README.txt`，脚本会自己认架构。代价是包比较大（约 245 MB），下载比 `docker pull` 慢。SHA256：`9002575390f158909ca9629b9c6dcfec4bd01f3ad0c3a35f680f50e6b5547671`。
+包里带两个镜像包，按芯片分而不是按品牌分：`-x86.tar.gz` 给 Intel / AMD 机器（绝大多数 NAS 和 PC），`-arm.tar.gz` 给 ARM 机器（DS223、树莓派、Mac M 系）。各约 123 MB，`install.sh` / `start.bat` 会自己认芯片，不用手动挑。代价是包比较大（约 244 MB），下载比 `docker pull` 慢。
+
+SHA256：`74ebcd8516f4ef681b44ba53079e8054abea420ad19865e093c5e7549a3afe76`
 
 自己做一个新的：`bash scripts/make-offline-bundle.sh 1.1.0`（需要本机已有 `abxy-arcade:1.1.0` 和 `abxy-arm64:1.1.0` 两个镜像）。
 

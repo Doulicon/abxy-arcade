@@ -34,23 +34,38 @@ if ! docker info >/dev/null 2>&1; then
   fi
 fi
 
-# ---------- 1. 选对应架构的包 ----------
-case "$(uname -m)" in
-  x86_64|amd64) ARCH=amd64 ;;
-  aarch64|arm64) ARCH=arm64 ;;
-  *) die "不认识的架构：$(uname -m)。本包只提供 amd64（x86）和 arm64 两个版本" ;;
+# ---------- 1. 选对应芯片的包 ----------
+# 对外只说人话：Intel/AMD 用 x86 包，ARM 用 arm 包。
+# amd64 / arm64 是 Docker 里的叫法，跟 AMD 或 Apple 一点关系都没有。
+MACHINE="$(uname -m)"
+case "$MACHINE" in
+  x86_64|amd64)
+    PKG=x86
+    CHIP="Intel / AMD 芯片（$MACHINE）"
+    ;;
+  aarch64|arm64)
+    PKG=arm
+    CHIP="ARM 芯片（$MACHINE）"
+    ;;
+  armv7l|armv8l|armv6l)
+    die "这台机器是 32 位 ARM（$MACHINE），本包里只有 64 位镜像，跑不了。
+       32 位 ARM 目前只能自己用源码构建（见 README.txt 末页），Dockerfile 未针对 armv7 验证过。"
+    ;;
+  *)
+    die "认不出这台机器的芯片类型（$MACHINE）。本包提供两种：Intel/AMD 用 x86，ARM 用 arm。"
+    ;;
 esac
 
-TAR="images/abxy-arcade-$VER-$ARCH.tar.gz"
-[ -f "$TAR" ] || die "找不到 $TAR。请确认解压完整，且架构是 $ARCH"
+TAR="images/abxy-arcade-$VER-$PKG.tar.gz"
+[ -f "$TAR" ] || die "找不到镜像包 $TAR。请确认压缩包解压完整。"
 
-say "检测到 $(uname -m) → 使用 $ARCH 包"
+say "检测到 $CHIP → 使用 $PKG 镜像包"
 
 # ---------- 2. 载入镜像 ----------
 if $SUDO docker image inspect "$IMAGE" >/dev/null 2>&1; then
   say "镜像 $IMAGE 已存在，跳过导入"
 else
-  say "正在导入镜像（$ARCH，约 1-3 分钟，慢是正常的）..."
+  say "正在导入镜像（约 1-3 分钟，慢是正常的，别关窗口）..."
   $SUDO docker load -i "$TAR" || die "镜像导入失败，文件可能下载不完整，请对照 SHA256SUMS.txt 校验"
 fi
 # 兜底：早期 arm64 包里的镜像名是 abxy-arm64:x，统一成主名，脚本和 compose 才通用。

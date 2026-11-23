@@ -7,7 +7,7 @@
 #
 # 不熟悉 compose 的话直接用 install.sh（Linux/NAS）或 start.bat（Windows）。
 #
-# images/ 里两个架构的包，导入后镜像名都是 abxy-arcade:__VERSION__，
+# images/ 里 x86 和 arm 两个包，导入后镜像名都是 abxy-arcade:__VERSION__，
 # 所以 x86 和 ARM 机型都不用改这里。
 # ============================================
 services:

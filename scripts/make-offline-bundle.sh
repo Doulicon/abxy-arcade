@@ -6,19 +6,22 @@
 #
 # 用法：
 #   bash scripts/make-offline-bundle.sh 1.1.0
-#   bash scripts/make-offline-bundle.sh 1.1.0 --arch amd64          # 只出 x86
-#   bash scripts/make-offline-bundle.sh 1.1.0 --arch amd64,arm64    # 双架构（默认）
+#   bash scripts/make-offline-bundle.sh 1.1.0 --arch x86               # 只出 x86
+#   bash scripts/make-offline-bundle.sh 1.1.0 --arch x86,arm           # 两种都出（默认）
 #   bash scripts/make-offline-bundle.sh 1.1.0 --out /tmp/bundle
 #
 # 前置：镜像已在本机 docker 里，tag 为
-#   amd64 → abxy-arcade:<版本>
-#   arm64 → abxy-arm64:<版本>
-# （arm64 用 buildx --platform linux/arm64 --load 生成）
+#   x86   → abxy-arcade:<版本>
+#   arm   → abxy-arm64:<版本>
+# （arm 用 buildx --platform linux/arm64 --load 生成）
+#
+# 包内文件名用 x86 / arm 而不是 amd64 / arm64 —— 后者跟 AMD、跟 Apple 都没关系，
+# 玩家看不懂。构建时仍接受 amd64 / arm64 作为别名。
 #
 # 产物结构（release/offline-<版本>/）：
 #   abxy-arcade-offline-<版本>/
-#   ├── images/abxy-arcade-<版本>-amd64.tar.gz
-#   ├── images/abxy-arcade-<版本>-arm64.tar.gz
+#   ├── images/abxy-arcade-<版本>-x86.tar.gz
+#   ├── images/abxy-arcade-<版本>-arm.tar.gz
 #   ├── install.sh            Linux / NAS 一键安装
 #   ├── start.bat             Windows 一键启动
 #   ├── docker-compose.yml    给熟悉 compose 的人
@@ -37,7 +40,7 @@ if [ -z "$VER" ] || [[ "$VER" == --* ]]; then
 fi
 shift
 
-ARCHS="amd64,arm64"
+ARCHS="x86,arm"
 OUT=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -66,7 +69,7 @@ fi
 if command -v pigz >/dev/null 2>&1; then GZ="pigz -9 -p $(nproc 2>/dev/null || echo 4)"; else GZ="gzip -9"; fi
 
 echo "版本: $VER"
-echo "架构: $ARCHS"
+echo "芯片: $ARCHS"
 echo "输出: $OUT"
 echo "压缩: $GZ"
 echo
@@ -75,27 +78,27 @@ rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/images"
 
 # ---------- 1. 导出镜像 ----------
-# 两个架构的 tar 里镜像名必须都是 abxy-arcade:<版本>，玩家 docker run 才不用改名字。
+# 两个 tar 里镜像名必须都是 abxy-arcade:<版本>，玩家 docker run 才不用改名字。
 # 做法：导出前把 abxy-arcade:<版本> 临时指向目标架构，导出完再恢复原指向。
-# （不能靠玩家端 retag —— 机器上万一同时有两个架构的镜像，会互相覆盖出错）
+# （不能靠玩家端 retag —— 机器上万一两种镜像都在，会互相覆盖出错）
 ORIG_ID="$($DOCKER image inspect -f '{{.Id}}' "abxy-arcade:$VER" 2>/dev/null || true)"
 
 IFS=',' read -ra LIST <<< "$ARCHS"
-for a in "${LIST[@]}"; do
-  case "$a" in
-    amd64) SRC="abxy-arcade:$VER" ;;
-    arm64) SRC="abxy-arm64:$VER" ;;
-    *) echo "!! 不支持的架构: $a" >&2; exit 1 ;;
+for raw in "${LIST[@]}"; do
+  case "$raw" in
+    x86|amd64)   PKG=x86; SRC="abxy-arcade:$VER"; PLATFORM=linux/amd64 ;;
+    arm|arm64)   PKG=arm; SRC="abxy-arm64:$VER";  PLATFORM=linux/arm64 ;;
+    *) echo "!! 不支持的芯片类型: $raw（可选 x86 / arm）" >&2; exit 1 ;;
   esac
   if ! $DOCKER image inspect "$SRC" >/dev/null 2>&1; then
     echo "!! 本机没有镜像 $SRC，先构建：" >&2
-    echo "   docker buildx build --builder <builder> --platform linux/$a \\" >&2
+    echo "   docker buildx build --builder <builder> --platform $PLATFORM \\" >&2
     echo "     -t $SRC --load ." >&2
     exit 1
   fi
 
-  TAR="$BUNDLE/images/abxy-arcade-$VER-$a.tar.gz"
-  echo "[$a] 导出 $SRC ..."
+  TAR="$BUNDLE/images/abxy-arcade-$VER-$PKG.tar.gz"
+  echo "[$PKG] 导出 $SRC ($PLATFORM) ..."
   $DOCKER tag "$SRC" "abxy-arcade:$VER"
   $DOCKER save "abxy-arcade:$VER" | $GZ > "$TAR"
   echo "      $(du -h "$TAR" | cut -f1)  $TAR"

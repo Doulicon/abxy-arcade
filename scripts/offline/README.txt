@@ -5,6 +5,23 @@ ABXY ARCADE 离线安装包  v__VERSION__
 镜像已经打包在 images/ 里，全程不联网、不去 GHCR 拉镜像。
 
 
+【我的机器该用哪个包】
+
+  images/ 里有两个镜像包，按芯片分，跟品牌无关：
+
+      abxy-arcade-__VERSION__-x86.tar.gz    Intel / AMD 芯片（笔记本电脑、绝大多数 NAS）
+      abxy-arcade-__VERSION__-arm.tar.gz    ARM 芯片（群晖 DS223、树莓派、Mac M 系列、ARM 版 NAS）
+
+  不用自己挑 —— install.sh 和 start.bat 会自动判断，选错了也起不来，
+  脚本会告诉你是哪一步。想知道自己属于哪种，可以在终端里敲：
+
+      Linux / NAS    uname -m        x86_64 → x86 包      aarch64 → arm 包
+      Windows        echo %PROCESSOR_ARCHITECTURE%        AMD64 → x86 包   ARM64 → arm 包
+      群晖 / 威联通   控制面板 → 系统信息 → CPU 型号
+
+  看到「armv7l」这种老 32 位 ARM（DS118 这类），本包不支持，只能用源码构建。
+
+
 【先看这里：你需要什么】
 
   · Docker
@@ -107,7 +124,11 @@ ABXY ARCADE 离线安装包  v__VERSION__
      再看群晖防火墙有没有放行端口。
 
   Q: 我的 NAS 是 ARM 的（DS223、TS-233 这类）
-  A: 不用管，install.sh 和 start.bat 会自动选 arm64 那个包。
+  A: 不用管，install.sh 和 start.bat 会自动选 arm 那个包。
+
+  Q: 提示「32 位 ARM（armv7l）」直接退出
+  A: 那是老款 ARM 机型（DS118 这类），本包只有 64 位镜像。
+     要么换台机器，要么自己用源码构建（见最后一页）。
 
   Q: 怎么确认文件下载完整
   A: sha256sum -c SHA256SUMS.txt
@@ -136,6 +157,21 @@ ABXY ARCADE 离线安装包  v__VERSION__
   拿到新版离线包后，重复一遍安装步骤即可：
   新镜像导入 → 脚本会自动删旧容器、用同一个 data 目录重新起。
   游戏、账号、封面、设置全都保留。
+
+
+【包里的镜像跑不了怎么办（32 位 ARM）】
+
+  只能自己构建。需要一台能联网的机器，装好 git 和 docker：
+
+      git clone https://github.com/Doulicon/abxy-arcade.git
+      cd abxy-arcade
+      cp .env.example .env          # 至少改掉 ADMIN_PASSWORD
+      docker compose up -d --build
+
+  国内构建报 failed to resolve source metadata，就在 .env 里加一行：
+      BASE_IMAGE=docker.1panel.live/library/node:22-bookworm-slim
+
+  armv7 这条路没有验证过，跑不通别花太多时间在这台上。
 
 
 ------------------------------------------

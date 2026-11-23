@@ -28,17 +28,23 @@ if errorlevel 1 (
 )
 echo  [1/4] Docker 正常
 
-rem ---------- 2. 选架构 ----------
-set "ARCH=amd64"
-if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "ARCH=arm64"
-set "TAR=%~dp0images\abxy-arcade-%VER%-!ARCH!.tar.gz"
+rem ---------- 2. 选芯片对应的包 ----------
+rem 对外只说人话：Intel/AMD 用 x86，ARM 用 arm。
+rem amd64 / arm64 是 Docker 的叫法，跟 AMD 或 Apple 没关系。
+set "PKG=x86"
+set "CHIP=Intel / AMD 芯片（%PROCESSOR_ARCHITECTURE%）"
+if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" (
+  set "PKG=arm"
+  set "CHIP=ARM 芯片（%PROCESSOR_ARCHITECTURE%）"
+)
+set "TAR=%~dp0images\abxy-arcade-%VER%-!PKG!.tar.gz"
 if not exist "!TAR!" (
   echo  [失败] 找不到镜像包： !TAR!
   echo         请确认压缩包解压完整。
   pause
   exit /b 1
 )
-echo  [2/4] 使用 !ARCH! 镜像包
+echo  [2/4] 检测到 !CHIP! -^> 使用 !PKG! 镜像包
 
 rem ---------- 3. 导入镜像 ----------
 docker image inspect "%IMAGE%" >nul 2>&1
