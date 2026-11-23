@@ -496,6 +496,12 @@ router.get('/admin/games', adminRequired, (req, res) => {
     where.push('g.series_id = @series');
     params.series = Number(series);
   }
+  // rom=broken → 只列「玩不了」的：压根没传过 ROM，或传过但文件已不在磁盘（rom_missing=1）。
+  // 口径与 /admin/stats 的 missingRom、前台卡片的「无 ROM」徽章保持一致。
+  const rom = String(req.query.rom || '').trim();
+  if (rom === 'broken') {
+    where.push("(g.rom_file = '' OR g.rom_file IS NULL OR g.rom_missing = 1)");
+  }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const total = db.prepare(`SELECT COUNT(*) AS n FROM games g ${whereSql}`).get(params).n;
   const rows = db
@@ -512,6 +518,22 @@ router.get('/admin/games', adminRequired, (req, res) => {
     pageSize,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
   });
+});
+
+/**
+ * 缺 ROM 的全部游戏 id（不分页）。后台「全选所有缺 ROM」用它一次性选中，
+ * 再走 /admin/games/batch-delete 删除，避免一页 15 条时要翻好几次。
+ */
+router.get('/admin/games/missing-ids', adminRequired, (_req, res) => {
+  const ids = db
+    .prepare(
+      `SELECT id FROM games
+       WHERE rom_file = '' OR rom_file IS NULL OR rom_missing = 1
+       ORDER BY id`,
+    )
+    .all()
+    .map((r) => r.id);
+  res.json({ ids, count: ids.length });
 });
 
 /**

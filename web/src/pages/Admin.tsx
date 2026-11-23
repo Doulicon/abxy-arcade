@@ -255,6 +255,9 @@ export default function Admin() {
   const [platformFilter, setPlatformFilter] = useState('');
   /** '' = 全部；'none' = 只看没归入任何系列的游戏 */
   const [seriesFilter, setSeriesFilter] = useState<'' | 'none'>('');
+  /** '' = 全部；'broken' = 只看缺 ROM（没传过 / 文件已丢）的不可玩条目 */
+  const [romFilter, setRomFilter] = useState<'' | 'broken'>('');
+  const [selectingBroken, setSelectingBroken] = useState(false);
   const [gamesLoading, setGamesLoading] = useState(true);
 
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -297,6 +300,7 @@ export default function Admin() {
           q: search,
           platform: platformFilter,
           series: seriesFilter === 'none' ? 'none' : '',
+          rom: romFilter === 'broken' ? 'broken' : '',
           page,
           pageSize: 15,
           sort: 'latest',
@@ -312,7 +316,7 @@ export default function Admin() {
     } finally {
       setGamesLoading(false);
     }
-  }, [search, platformFilter, seriesFilter, page, toast, t]);
+  }, [search, platformFilter, seriesFilter, romFilter, page, toast, t]);
 
   const loadUsers = useCallback(async () => {
     setUsersLoading(true);
@@ -427,6 +431,23 @@ export default function Admin() {
       else next.add(id);
       return next;
     });
+  };
+
+  /**
+   * 一次性选中「所有」缺 ROM 的游戏（不分页）。
+   * 一键清理流程：点「缺 ROM」筛选 → 全选所有 → 删除选中 → 确认。
+   */
+  const selectAllBroken = async () => {
+    setSelectingBroken(true);
+    try {
+      const res = await api.get<{ ids: number[]; count: number }>('/admin/games/missing-ids');
+      setSelected(new Set(res.ids));
+      if (res.count) toast(t('admin.toast.selectAllBroken', { n: res.count }), 'info');
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t('admin.toast.gamesFail'), 'error');
+    } finally {
+      setSelectingBroken(false);
+    }
   };
 
   /** 打开批量归类弹窗前加载系列列表 */
@@ -564,6 +585,9 @@ export default function Admin() {
     }
   };
 
+  /** 有任何筛选条件时，空结果也要保留筛选控件（否则没法取消筛选） */
+  const hasFilter = !!(search || platformFilter || seriesFilter || romFilter === 'broken');
+
   /** 平台筛选 + 未归档：紧跟在批量操作栏「归类到系列」右侧 */
   const gameFilters = (
     <>
@@ -598,6 +622,26 @@ export default function Admin() {
         }`}
       >
         {t('admin.filter.unassigned')}
+      </button>
+      {/* 缺 ROM：只看玩不了的条目，配合「全选所有」一键清掉 */}
+      <button
+        type="button"
+        onClick={() => {
+          setRomFilter((v) => (v === 'broken' ? '' : 'broken'));
+          setPage(1);
+        }}
+        aria-pressed={romFilter === 'broken'}
+        title={t('admin.filter.brokenRomHint')}
+        className={`flex h-8 shrink-0 items-center gap-1 border-2 px-3 text-xs font-bold transition-colors ${
+          romFilter === 'broken'
+            ? 'border-[#ffb020] bg-[#ffb020]/10 text-[#ffb020]'
+            : 'border-line bg-[#0f0f16] text-muted hover:border-[#ffb020]/50 hover:text-white'
+        }`}
+      >
+        {t('admin.filter.brokenRom')}
+        {stats && stats.missingRom > 0 && (
+          <span className="opacity-70">{stats.missingRom}</span>
+        )}
       </button>
     </>
   );
@@ -663,9 +707,19 @@ export default function Admin() {
       </div>
 
       {stats && stats.missingRom > 0 && (
-        <p className="mt-3 border-l-2 border-[#ffb020] bg-[#ffb020]/5 px-3 py-2 text-[11px] text-[#ffb020]">
-          {t('admin.missingRom', { n: stats.missingRom })}
-        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-l-2 border-[#ffb020] bg-[#ffb020]/5 px-3 py-2 text-[11px] text-[#ffb020]">
+          <span className="min-w-0 flex-1">{t('admin.missingRom', { n: stats.missingRom })}</span>
+          <button
+            className="shrink-0 border border-[#ffb020]/50 px-2 py-0.5 font-bold text-[#ffb020] transition-colors hover:bg-[#ffb020]/15"
+            onClick={() => {
+              setTab('games');
+              setRomFilter('broken');
+              setPage(1);
+            }}
+          >
+            {t('admin.missingRomAction')}
+          </button>
+        </div>
       )}
 
       {/* Tabs */}
@@ -728,26 +782,26 @@ export default function Admin() {
           ) : !games || games.items.length === 0 ? (
             <>
               {/* 筛选结果为空时也要留着筛选控件，否则无法取消筛选 */}
-              {search || platformFilter || seriesFilter ? (
+              {hasFilter ? (
                 <div className="mb-3 flex flex-wrap items-center gap-2">{gameFilters}</div>
               ) : null}
               <EmptyState
                 title={
                   seriesFilter === 'none' && !search && !platformFilter
                     ? t('admin.games.emptyUnassigned')
-                    : search || platformFilter || seriesFilter
+                    : hasFilter
                       ? t('admin.games.empty')
                       : t('admin.games.none')
                 }
                 description={
                   seriesFilter === 'none' && !search && !platformFilter
                     ? t('admin.games.emptyUnassignedDesc')
-                    : search || platformFilter || seriesFilter
+                    : hasFilter
                       ? t('admin.games.emptyDesc')
                       : t('admin.games.noneDesc')
                 }
                 action={
-                  !search && !platformFilter && !seriesFilter ? (
+                  !hasFilter ? (
                     <button
                       className="btn btn-primary text-xs"
                       onClick={() => {
@@ -775,6 +829,18 @@ export default function Admin() {
                   <IconCheck className="h-3.5 w-3.5" />
                   {allPageSelected ? t('admin.batch.unselectAll') : t('admin.batch.selectAll')}
                 </button>
+                {/* 缺 ROM 视图下额外给一个「跨页全选」，一条链清完不用翻页 */}
+                {romFilter === 'broken' && (
+                  <button
+                    className="btn btn-ghost text-xs"
+                    onClick={selectAllBroken}
+                    disabled={selectingBroken || !games.total}
+                    title={t('admin.batch.selectAllBrokenHint')}
+                  >
+                    {selectingBroken ? <Spinner className="h-3.5 w-3.5" /> : <IconCheck className="h-3.5 w-3.5" />}
+                    {t('admin.batch.selectAllBroken', { n: games.total })}
+                  </button>
+                )}
                 <button
                   className="btn btn-danger text-xs"
                   onClick={() => setBatchDeleteOpen(true)}
