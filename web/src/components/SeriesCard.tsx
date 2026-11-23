@@ -4,20 +4,13 @@ import type { Series } from '../types';
 import { IconPlay, IconStar } from './Icons';
 import { PixelCard } from './PixelCard';
 
-/** 把 "动作 / 射击" 这类自由填写拆成多个类型标签 */
-function splitGenres(genre: string) {
-  return genre
-    .split(/[,，、/|·;；]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
 /**
- * 系列卡片：与游戏卡同规格，上方竖版封面（400:567），下方名称 + 类型标签。
+ * 系列卡片：与游戏卡完全同规格 —— 上方竖版封面（3:4），下方 32px 只放一行系列名，
+ * 超长省略。系列卡与无系列游戏会在游戏库同一个网格里混排，文字区高度必须一致，
+ * 否则同一行的卡片会一高一低。
  * 平台标签在图片右下角（与游戏卡片一致），精选星标左上。
  */
 export function SeriesCard({ series, index = 0 }: { series: Series; index?: number }) {
-  const genres = splitGenres(series.genre).slice(0, 2);
   const platformName = series.platformShort || series.platform || '';
 
   return (
@@ -84,19 +77,9 @@ export function SeriesCard({ series, index = 0 }: { series: Series; index?: numb
         </div>
 
         <div className="card-body card-body--game">
-          <h3 className="card-title card-title--game line-clamp-2 text-white transition-colors group-hover:text-neon">
+          <h3 className="card-title card-title--game block truncate text-white transition-colors group-hover:text-neon">
             {series.name}
           </h3>
-
-          {genres.length > 0 && (
-            <div className="flex shrink-0 flex-nowrap gap-1 overflow-hidden" title={series.genre}>
-              {genres.map((g) => (
-                <span key={g} className="genre-chip">
-                  {g}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </PixelCard>
     </Link>

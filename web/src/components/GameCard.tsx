@@ -14,17 +14,18 @@ function splitGenres(genre: string) {
 }
 
 /**
- * 游戏卡片（竖版）：上方竖版封面（400:567，街机海报的常见比例，直接传原图即可），
- * 下方 68px 文字区：游戏名（两行截断）+ 最多两枚类型标签。
+ * 游戏卡片（竖版）：上方竖版封面（3:4），下方 32px 单行文字区只放游戏名，
+ * 名称超长自动省略（完整名称看 hover 的 title）。类型标签已在封面右下角和
+ * 详情页展示，卡片文字区不再重复，避免文字区空出大片留白。
  * 平台标签在图片右下角，精选星标左上，缺 ROM 提示右上。
  *
- * 比例差异大的封面（GBA/NDS 方图、N64 横图）会自动改成完整显示 + 同图虚化底，
+ * 比例差异大的封面（GBA/GB 方图、N64 横图）会自动改成完整显示 + 同图虚化底，
  * 牌面高度不变，所以网格始终整齐 —— 具体判断在 GameCover 里。
  */
 export function GameCard({ game, index = 0 }: { game: Game; index?: number }) {
   const { t } = useI18n();
-  // 文字区只有 76px：最多两枚标签，保证「名称两行 + 标签一行」不换行、不溢出
-  const genres = splitGenres(game.genre).slice(0, 2);
+  // 封面右下角只放类型标签的第一枚（空间有限）
+  const genres = splitGenres(game.genre).slice(0, 1);
 
   return (
     <Link
@@ -83,19 +84,9 @@ export function GameCard({ game, index = 0 }: { game: Game; index?: number }) {
         </div>
 
         <div className="card-body card-body--game">
-          <h3 className="card-title card-title--game line-clamp-2 text-white transition-colors group-hover:text-neon">
+          <h3 className="card-title card-title--game block truncate text-white transition-colors group-hover:text-neon">
             {game.title}
           </h3>
-
-          {genres.length > 0 && (
-            <div className="flex shrink-0 flex-nowrap gap-1 overflow-hidden" title={game.genre}>
-              {genres.map((g) => (
-                <span key={g} className="genre-chip">
-                  {g}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </PixelCard>
     </Link>
