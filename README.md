@@ -33,7 +33,9 @@ docker compose up -d
 
 ### 方式 0.5：离线安装包（不能联网 / 拉不动镜像时）
 
-镜像直接打包在压缩包里，全程不访问网络，适合内网机器、拉不动 GHCR 的玩家：
+镜像直接打包在压缩包里，全程不访问网络，适合内网机器、拉不动 GHCR 的玩家。
+
+下载：<https://github.com/Doulicon/abxy-arcade/releases/download/v1.1.0/abxy-arcade-offline-1.1.0.zip>（245 MB）
 
 ```bash
 # 解压后（Windows 双击 start.bat 也行）
@@ -42,7 +44,7 @@ sudo sh install.sh            # 默认端口 30000，数据放 ./data
 sudo sh install.sh 8080       # 换端口
 ```
 
-包里带 amd64 与 arm64 两个镜像（各约 123 MB）和一份 `README.txt`，脚本会自己认架构。缺点是包比较大（约 245 MB），网盘下载比 `docker pull` 慢。
+包里带 amd64 与 arm64 两个镜像（各约 123 MB）和一份 `README.txt`，脚本会自己认架构。代价是包比较大（约 245 MB），下载比 `docker pull` 慢。SHA256：`9002575390f158909ca9629b9c6dcfec4bd01f3ad0c3a35f680f50e6b5547671`。
 
 自己做一个新的：`bash scripts/make-offline-bundle.sh 1.1.0`（需要本机已有 `abxy-arcade:1.1.0` 和 `abxy-arm64:1.1.0` 两个镜像）。
 
