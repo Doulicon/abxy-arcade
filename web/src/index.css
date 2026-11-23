@@ -597,6 +597,12 @@ textarea {
   user-select: none;
 }
 
+/* 完整显示的封面加一层贴图投影（drop-shadow 跟的是图片实际像素，不是元素框），
+   让它在虚化底上"浮"起来，像带框海报而不是图没铺满 */
+.cover-fit {
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.55));
+}
+
 /* 浅色主题里压暗会变成脏灰，改成略微提亮再降不透明度 */
 html[data-theme='light'] .cover-echo {
   filter: blur(14px) saturate(0.9) brightness(1.06);

@@ -237,7 +237,7 @@ export function GameCover({
             loading="lazy"
             onLoad={handleLoad}
             onError={() => setBroken(true)}
-            className={`relative h-full w-full object-contain ${className}`}
+            className={`cover-fit relative h-full w-full object-contain ${className}`}
           />
         </div>
       );
