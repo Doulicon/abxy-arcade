@@ -273,9 +273,10 @@ function collect(bucket, key, romDir, cache, out, weight) {
  * 给一个 ROM 找封面源文件。
  * @param {string} romAbsPath ROM 的绝对路径
  * @param {ReturnType<typeof buildMediaIndex>} [index] 批量场景复用
+ * @param {string[]} [extraNames] 这个游戏的其他叫法（来自资料库），按顺序逐个试
  * @returns {string|null}
  */
-export function findCoverSource(romAbsPath, index) {
+export function findCoverSource(romAbsPath, index, extraNames) {
   if (!romAbsPath) return null;
   const key = baseKey(romAbsPath);
   if (!key) return null;
@@ -289,21 +290,52 @@ export function findCoverSource(romAbsPath, index) {
   const out = [];
   const cache = idx.imgCache;
 
-  // 精确名优先，去掉 [汉化] 标签的宽松名其次
+  // 逐级放宽的候选名：
+  //   原名 → 去掉 [汉化](JP)[ACT] 标签 → 砍掉副标题（「洛克人2 - Dr.Wily之谜」→「洛克人2」）
+  //   → 去掉尾部年份（「坦克大战2008」→「坦克大战」）
+  const rawBase = path.basename(String(romAbsPath).replace(/\\/g, '/'), path.extname(romAbsPath));
   const loose = looseKey(romAbsPath);
-  const keys = loose && loose !== key ? [key, loose] : [key];
+  const mainTitle = looseKey(String(rawBase).split(/\s*[-–—:：]\s*/)[0]);
+  const noYear = loose ? loose.replace(/(19|20)\d{2}$/, '') : '';
 
-  keys.forEach((k, keyIndex) => {
-    const base = keyIndex * 150; // 宽松名匹配排在精确名之后
+  const keys = [];
+  const seenKeys = new Set();
+  const addKey = (k, weight) => {
+    if (!k || seenKeys.has(k)) return;
+    seenKeys.add(k);
+    keys.push({ k, weight });
+  };
+  addKey(key, 0);
+  addKey(loose, 150);
+  addKey(mainTitle, 320);
+  addKey(noYear, 380);
+  // 资源包把初代叫「洛克人1」，ROM 只写「洛克人」：补一个 +1 的名字。
+  // 只试 1 不试 2/3，资源包里没有「洛克人1」时就当没这回事，不会错配到续作。
+  if (loose && !/\d$/.test(loose)) addKey(`${loose}1`, 450);
+
+  keys.forEach(({ k, weight }) => {
     // ① 本平台：同名文件夹 > 同名图片
-    if (platformId) collect(idx.buckets.get(platformId), k, romDir, cache, out, base);
+    if (platformId) collect(idx.buckets.get(platformId), k, romDir, cache, out, weight);
     // ② 全平台共用目录（roms/resources 这类），排在平台后面
-    collect(idx.buckets.get(GLOBAL_BUCKET), k, romDir, cache, out, base + 400);
+    collect(idx.buckets.get(GLOBAL_BUCKET), k, romDir, cache, out, weight + 400);
   });
 
-  // ③ 别名：改版没有自己的图时借用正传的
+  // ③ 资料库别名：玩家 ROM 叫「超级魂斗罗」，资源包却按「魂斗罗2」建文件夹，
+  //    名字完全对不上，只能靠别名表把两套命名连起来
+  const seen = new Set(seenKeys);
+  const extras = Array.isArray(extraNames) ? extraNames : [];
+  extras.forEach((name, i) => {
+    const k = looseKey(name);
+    if (!k || seen.has(k)) return;
+    seen.add(k);
+    const w = 700 + i * 60;
+    if (platformId) collect(idx.buckets.get(platformId), k, romDir, cache, out, w);
+    collect(idx.buckets.get(GLOBAL_BUCKET), k, romDir, cache, out, w + 400);
+  });
+
+  // ④ 别名：改版没有自己的图时借用正传的
   aliasChain(key).forEach((alt, i) => {
-    const w = 1000 * (i + 1);
+    const w = 1000 * (i + 1) + 1000;
     if (platformId) collect(idx.buckets.get(platformId), alt, romDir, cache, out, w);
     collect(idx.buckets.get(GLOBAL_BUCKET), alt, romDir, cache, out, w + 400);
   });

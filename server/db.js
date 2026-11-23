@@ -125,6 +125,12 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_games_series ON games(series_id)');
 ensureColumn('games', 'cover_source', "cover_source TEXT NOT NULL DEFAULT ''");
 /** 自动封面的来源指纹（源图路径 + 大小 + 修改时间）：resources 里的图换了才重新导入，没换就沿用 */
 ensureColumn('games', 'cover_auto_key', "cover_auto_key TEXT NOT NULL DEFAULT ''");
+/**
+ * 这个游戏的全部叫法（JSON 数组）：中文名、资料里的文件名、简介里的别名。
+ * 玩家 ROM 常是「超级魂斗罗 (版本2)[星空汉化]...」，资源包却按「魂斗罗2」建文件夹，
+ * 两套命名对不上，靠这张别名表逐个试封面目录。
+ */
+ensureColumn('games', 'aliases', "aliases TEXT NOT NULL DEFAULT ''");
 
 // 老库补来源标记：自动导入的封面名形如 mslug3-Ab3xk9.jpg（ROM 名 + 6 位随机），
 // 手动上传的是 14 位纯随机名，据此把历史数据分回两类，避免升级后误判

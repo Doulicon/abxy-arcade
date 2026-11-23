@@ -661,13 +661,42 @@ function mergeMeta(row, meta, defaultTitle) {
 }
 
 /**
- * 从 ROM 旁边的 resources/ 里取同名图片当封面。
+ * 资料记录 → 这个游戏的别名名单（封面查找用）。
+ * 第一个是资料库标题（通常就是资源包文件夹的名字），后面是文件名和简介里的别名。
+ */
+function metaAliases(meta) {
+  if (!meta) return [];
+  const list = [meta.title, ...(meta.aliases || [])]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean);
+  return [...new Set(list)];
+}
+
+/** 别名名单落库：空数组存空串，方便判断「有没有算过」 */
+function aliasesToJson(list) {
+  return list && list.length ? JSON.stringify(list) : '';
+}
+
+/** 从库里读回别名名单，坏数据当没有 */
+function aliasesFromJson(raw) {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((s) => typeof s === 'string' && s) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 从 ROM 旁边的资源目录里取同名图片当封面。
  * @param {string} romAbsPath ROM 绝对路径
  * @param {Object} [index] 批量场景下复用 buildMediaIndex() 的结果
+ * @param {string[]} [extraNames] 资料库给出的别名，原名对不上时按顺序再试
  * @returns {{url: string, key: string}|null} 没找到返回 null
  */
-function coverFromMedia(romAbsPath, index) {
-  const src = findCoverSource(romAbsPath, index);
+function coverFromMedia(romAbsPath, index, extraNames) {
+  const src = findCoverSource(romAbsPath, index, extraNames);
   if (!src) return null;
   return {
     url: importCover(src, path.basename(romAbsPath, path.extname(romAbsPath))),
@@ -687,7 +716,9 @@ router.post('/admin/games', adminRequired, gameUpload, (req, res) => {
     // 管理员填过的字段一律不覆盖，只补空缺。
     const body = { ...req.body };
     const guessId = String(body.platform ?? '').trim() || guessPlatform(originalName) || '';
-    fillBodyFromMeta(body, lookupGameMeta(originalName, guessId));
+    const meta = lookupGameMeta(originalName, guessId);
+    fillBodyFromMeta(body, meta);
+    const aliasList = metaAliases(meta);
     const data = parsePayload(body, {}, originalName);
 
     // ROM 落到 data/roms/<平台 id>/ 下，顺便校验格式与 romset 命名
@@ -703,7 +734,9 @@ router.post('/admin/games', adminRequired, gameUpload, (req, res) => {
     } else if (!cover) {
       // 没传封面：试着从 ROM 同级的 resources/ 里捡一张
       const romAbs = path.join(ROM_DIR, saved.romFile);
-      const auto = coverFromMedia(romAbs) || coverFromMedia(romAbs, buildMediaIndex());
+      const auto =
+        coverFromMedia(romAbs, undefined, aliasList) ||
+        coverFromMedia(romAbs, buildMediaIndex(), aliasList);
       if (auto) {
         cover = auto.url;
         coverSource = 'auto';
@@ -713,10 +746,10 @@ router.post('/admin/games', adminRequired, gameUpload, (req, res) => {
 
     const info = db
       .prepare(
-        `INSERT INTO games (title, platform, description, cover, cover_source, cover_auto_key,
+        `INSERT INTO games (title, platform, description, cover, cover_source, cover_auto_key, aliases,
           rom_file, rom_name, rom_size,
           core, bios_name, year, developer, publisher, genre, players, featured, weight, series_id)
-         VALUES (@title, @platform, @description, @cover, @coverSource, @coverKey, @romFile, @romName, @romSize,
+         VALUES (@title, @platform, @description, @cover, @coverSource, @coverKey, @aliases, @romFile, @romName, @romSize,
           @core, @biosName, @year, @developer, @publisher, @genre, @players, @featured, @weight, @seriesId)`,
       )
       .run({
@@ -724,6 +757,7 @@ router.post('/admin/games', adminRequired, gameUpload, (req, res) => {
         cover,
         coverSource,
         coverKey,
+        aliases: aliasesToJson(aliasList),
         romFile: saved.romFile,
         romName: saved.romName,
         romSize: saved.size,
@@ -1123,7 +1157,7 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
   const { files: candidates, unresolved } = listRomCandidates();
   const rows = db
     .prepare(
-      'SELECT id, title, platform, description, cover, cover_source, cover_auto_key, rom_file, rom_name, rom_size, rom_missing FROM games',
+      'SELECT id, title, platform, description, cover, cover_source, cover_auto_key, aliases, rom_file, rom_name, rom_size, rom_missing FROM games',
     )
     .all();
   // 所有 media/ 目录里的图片一次性建索引，几百个 ROM 共用，别逐个翻磁盘
@@ -1196,14 +1230,20 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
     const nextTitle = merged.title;
     const nextDesc = merged.description;
 
+    // 别名名单：资料库能匹配就用最新的（资料更新后别名会跟着变），
+    // 匹配不到就沿用库里存的，别把管理员补过的名字洗掉
+    const aliasList = meta ? metaAliases(meta) : aliasesFromJson(row.aliases);
+    const nextAliases = aliasesToJson(aliasList);
+
     // 封面：玩家自己上传的（cover_source = 'manual'）永远不动；
     // 自动匹配的每次都跟 resources/ 对一遍，图换了就换新封面，图删了就留着旧的。
+    // 原名对不上时按别名逐个试（「超级魂斗罗」→「魂斗罗2」）。
     let nextCover = row.cover;
     let nextSource = row.cover_source || '';
     let nextKey = row.cover_auto_key || '';
     if (nextSource !== 'manual') {
       const coverLost = nextCover.startsWith('/uploads/covers/') && !coverExists(nextCover);
-      const src = findCoverSource(file.absPath, mediaIndex);
+      const src = findCoverSource(file.absPath, mediaIndex, aliasList);
       if (src) {
         const fp = coverFingerprint(src);
         const unchanged = fp && fp === nextKey && nextCover && !coverLost;
@@ -1234,7 +1274,8 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
       row.rom_file !== romFile ||
       row.rom_size !== romSize ||
       row.rom_name !== nextRomName ||
-      nextKey !== (row.cover_auto_key || '');
+      nextKey !== (row.cover_auto_key || '') ||
+      nextAliases !== (row.aliases || '');
     if (!changed) {
       skipped.push({ file: file.fileName, reason: '已登记' });
       continue;
@@ -1242,9 +1283,9 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
 
     db.prepare(
       `UPDATE games SET rom_file = ?, rom_name = ?, rom_size = ?, rom_missing = 0,
-        title = ?, description = ?, cover = ?, cover_source = ?, cover_auto_key = ?,
+        title = ?, description = ?, cover = ?, cover_source = ?, cover_auto_key = ?, aliases = ?,
         updated_at = datetime('now') WHERE id = ?`,
-    ).run(romFile, nextRomName, romSize, nextTitle, nextDesc, nextCover, nextSource, nextKey, row.id);
+    ).run(romFile, nextRomName, romSize, nextTitle, nextDesc, nextCover, nextSource, nextKey, nextAliases, row.id);
 
     if (metaChanged) {
       enriched.push({
@@ -1273,13 +1314,15 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
     }
 
     try {
+      // 先查资料库：中文名 + 简介，顺带拿到别名名单——封面找图时按别名再试一遍
+      const meta = lookupGameMeta(file.fileName, platform.id);
+      const aliasList = metaAliases(meta);
+
       // 封面要在搬文件之前找：media/ 就在 ROM 原来的同级目录里
-      const media = findCoverSource(file.absPath, mediaIndex);
+      const media = findCoverSource(file.absPath, mediaIndex, aliasList);
       const romFile = file.needsRelocate ? relocateRom(file.absPath, platform.id) : file.relPath;
       const romSize = fs.statSync(resolveRomPath(romFile) || file.absPath).size;
 
-      // 用内置资料库查中文名 + 简介；查不到就按文件名来
-      const meta = lookupGameMeta(file.fileName, platform.id);
       const title = meta?.title || titleFromFileName(file.fileName) || file.fileName;
       const description = meta?.description || '';
       const cover = media
@@ -1288,10 +1331,10 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
 
       const info = db
         .prepare(
-          `INSERT INTO games (title, platform, description, cover, cover_source, cover_auto_key,
+          `INSERT INTO games (title, platform, description, cover, cover_source, cover_auto_key, aliases,
             rom_file, rom_name, rom_size, core, bios_name, year, developer, publisher, genre, players,
             featured, rom_missing)
-           VALUES (@title, @platform, @description, @cover, @coverSource, @coverKey,
+           VALUES (@title, @platform, @description, @cover, @coverSource, @coverKey, @aliases,
             @romFile, @romName, @romSize,
             @core, @biosName, NULL, '', '', '', 1, 0, 0)`,
         )
@@ -1302,6 +1345,7 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
           cover,
           coverSource: media ? 'auto' : '',
           coverKey: media ? coverFingerprint(media) : '',
+          aliases: aliasesToJson(aliasList),
           romFile,
           romName: file.fileName,
           romSize,
