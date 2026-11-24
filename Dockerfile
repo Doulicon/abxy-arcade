@@ -81,6 +81,7 @@ COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
   && chmod +x /usr/local/bin/docker-entrypoint.sh \
   && chmod -R a+rX /app \
+  && chmod +x /app/node_modules/7zip-bin/linux/*/7za \
   && mkdir -p /data/roms /data/covers /data/bios \
   && chown -R node:node /data
 

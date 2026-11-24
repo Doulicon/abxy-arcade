@@ -8,6 +8,14 @@ import { nanoid } from 'nanoid';
 
 const run = promisify(execFile);
 
+// 7zip-bin 的 Linux 二进制 npm 打包时可能丢失执行位（644），
+// 运行时兜底 chmod，避免 Permission denied。
+try {
+  fs.accessSync(path7za, fs.constants.X_OK);
+} catch {
+  fs.chmodSync(path7za, 0o755);
+}
+
 /** 7z 解压/打包超时（大整合包可能较慢，给足 5 分钟） */
 const SEVENZ_TIMEOUT = 5 * 60 * 1000;
 
