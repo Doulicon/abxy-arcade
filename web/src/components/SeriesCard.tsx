@@ -4,11 +4,9 @@ import { IconPlay, IconStar } from './Icons';
 import { PixelCard } from './PixelCard';
 
 /**
- * 系列卡片：与游戏卡完全同规格 —— 上方竖版封面（3:4），下方毛玻璃板（40px）
- * 只放一行居中的系列名，超长省略。系列卡与无系列游戏会在游戏库同一个网格里
- * 混排，文字区高度必须一致，否则同一行的卡片会一高一低。
- * 平台标签在图片右下角（与游戏卡片一致），精选星标左上。
- * 整卡同样垫一层封面模糊底，与游戏卡的留白质感对齐。
+ * 系列卡片：与游戏卡完全同规格 —— 整张卡就是封面（3:4 铺满），
+ * 下沿一条模糊带放系列名（居中一行，超长省略），平台标签压在模糊带右下角。
+ * 系列卡与无系列游戏会在游戏库同一个网格里混排，尺寸必须保持一致。
  */
 export function SeriesCard({ series, index = 0 }: { series: Series; index?: number }) {
   const platformName = series.platformShort || series.platform || '';
@@ -20,7 +18,7 @@ export function SeriesCard({ series, index = 0 }: { series: Series; index?: numb
       style={{ animationDelay: `${Math.min(index, 12) * 20}ms` }}
       title={series.name}
     >
-      <PixelCard bgSrc={series.cover || undefined}>
+      <PixelCard>
         <div className="card-art card-art--game">
           <div className="h-full w-full transition-transform duration-300 group-hover:scale-[1.06]">
             {series.cover ? (
@@ -54,32 +52,29 @@ export function SeriesCard({ series, index = 0 }: { series: Series; index?: numb
             </div>
           )}
 
-          {/* 平台标签：图片右下角，样式与游戏卡片完全一致 */}
-          {platformName && (
-            <span
-              className="platform-badge"
-              style={{
-                color: series.platformColor || '#4cc9ff',
-                borderColor: `${series.platformColor || '#4cc9ff'}80`,
-                background: 'rgba(4,10,24,.86)',
-                textShadow: `0 1px 2px rgba(4,10,24,.5), 0 0 8px ${series.platformColor || '#4cc9ff'}55`,
-              }}
-            >
-              {platformName}
-            </span>
-          )}
-
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="px-btn-shape flex h-10 w-10 translate-y-2 items-center justify-center border-2 border-neon bg-neon/90 text-[#04101f] opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
               <IconPlay className="ml-0.5 h-4 w-4" />
             </span>
           </div>
-        </div>
 
-        <div className="card-body card-body--game">
-          <h3 className="card-title card-title--game block w-full truncate text-center text-white transition-colors group-hover:text-neon">
-            {series.name}
-          </h3>
+          <div className="card-scrim">
+            <h3 className="card-title card-title--game block w-full truncate text-center text-white transition-colors group-hover:text-neon">
+              {series.name}
+            </h3>
+            {platformName && (
+              <span
+                className="platform-badge"
+                style={{
+                  color: series.platformColor || '#4cc9ff',
+                  borderColor: `${series.platformColor || '#4cc9ff'}80`,
+                  textShadow: `0 1px 2px rgba(4,10,24,.5), 0 0 8px ${series.platformColor || '#4cc9ff'}55`,
+                }}
+              >
+                {platformName}
+              </span>
+            )}
+          </div>
         </div>
       </PixelCard>
     </Link>

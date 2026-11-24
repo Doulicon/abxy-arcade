@@ -192,12 +192,18 @@ export function GameCover({
   className = '',
   frameRatio = 3 / 4,
   echo = true,
+  fill = false,
 }: {
   game: Game;
   className?: string;
   frameRatio?: number;
-  /** 牌面外已有整卡模糊底（游戏卡/系列卡）时传 false，避免双层模糊叠暗 */
+  /** 牌面外已有整卡模糊底时传 false，避免双层模糊叠暗 */
   echo?: boolean;
+  /**
+   * 整张卡就是封面（游戏卡/系列卡）：竖版比牌面更长 -> 铺满，上下适当裁掉；
+   * 1:1 方图 / 横图 -> 不缩放，完整显示，身后垫同图模糊底（牌面尺寸不变）
+   */
+  fill?: boolean;
 }) {
   const [broken, setBroken] = useState(false);
   const [fit, setFit] = useState(false);
@@ -209,12 +215,17 @@ export function GameCover({
     setFit(false);
   }, [game.cover]);
 
-  // 图片自身宽高比与牌面差超过 15% 就改完整显示，不写死平台表：
-  // 换一套封面包、或某平台混进比例不对的图，也能自己兜住。
+  // 满卡模式：只有「比牌面更瘦长」的竖图才铺满裁切（FC 350×478 只裁 2%），
+  // 1:1 方图和横图一律不缩放、完整显示，空出来的地方垫模糊底。
+  // 非满卡模式（详情页大图）仍按 15% 容差判断，不写死平台表。
   function handleLoad(e: SyntheticEvent<HTMLImageElement>) {
     const { naturalWidth, naturalHeight } = e.currentTarget;
     if (!naturalWidth || !naturalHeight) return;
     const ratio = naturalWidth / naturalHeight;
+    if (fill) {
+      setFit(ratio > frameRatio + 0.01);
+      return;
+    }
     setFit(Math.abs(ratio - frameRatio) / frameRatio > 0.15);
   }
 
@@ -352,9 +363,6 @@ export function SkeletonGrid({ count = 12 }: { count?: number }) {
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="border-2 border-line/70 bg-panel/60">
           <div className="skeleton aspect-[3/4] w-full" />
-          <div className="flex h-10 items-center justify-center px-2.5">
-            <div className="skeleton h-3 w-3/4" />
-          </div>
         </div>
       ))}
     </div>

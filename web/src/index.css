@@ -351,10 +351,10 @@ textarea {
     aspect-ratio: 1 / 1;
   }
   .card-art--game {
-    /* 竖版卡 3:4：FC 盒图（350×478 ≈ 0.73）放进来只裁 2% 上下，左右完整不削。
-       背景透明，让 PixelCard 的整卡模糊封面底透上来（见 .card-cover-bg） */
+    /* 整张卡就是封面：3:4 铺满，比例更长的封面上下适当裁掉（object-cover），
+       1:1 / 横图同样铺满，卡片尺寸完全不受封面比例影响 */
     aspect-ratio: 3 / 4;
-    background: transparent;
+    background: #04101f;
   }
 
   .card-body {
@@ -363,38 +363,28 @@ textarea {
   .card-body--platform {
     height: 7.375rem; /* 118px ≈ 401 − 275 − 6 */
   }
-  .card-body--game {
-    /* 整块留白 = 一片毛玻璃：底下是整卡那张模糊封面（.card-cover-bg），
-       这里叠一层「白光 + 冷调暗尾」的半透膜，再加 backdrop-blur，
-       所以看上去是盖在封面上的磨砂玻璃板，而不是一条生硬的黑带。
-       左/右 padding 等宽，是为了让标题始终落在整张卡片的正中 */
-    position: relative;
+  /* 底部模糊带：整块矩形，一刀切齐。
+     只做两件事 —— 一整条均匀 blur 掉身下的封面，再叠一层均匀的薄压暗托住白字；
+     不做渐隐、不做高光、不加白膜/边框，避免"过度处理"。
+     高度 23%（≈ 卡宽的 31%，和设计稿红框比例一致），随卡片大小缩放 */
+  .card-scrim {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
     z-index: 2;
     display: flex;
-    height: 2.5rem;
-    flex: none;
+    height: 25%;
     align-items: center;
     justify-content: center;
-    padding: 0 2.5rem;
-    /* 上层斜向反光（玻璃高光）+ 下层淡白膜压深尾，两道光叠出玻璃的通透感 */
-    background-image: linear-gradient(
-        105deg,
-        rgba(255, 255, 255, 0.24) 0%,
-        rgba(255, 255, 255, 0.07) 38%,
-        rgba(255, 255, 255, 0.02) 62%,
-        rgba(255, 255, 255, 0.14) 100%
-      ),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.1), rgba(4, 12, 26, 0.3));
-    backdrop-filter: blur(18px) brightness(1.28) saturate(1.5);
-    -webkit-backdrop-filter: blur(18px) brightness(1.28) saturate(1.5);
-    border-top: 1px solid rgba(255, 255, 255, 0.28);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.22),
-      inset 0 -14px 22px -16px rgba(0, 0, 0, 0.6),
-      0 -10px 18px -14px rgba(0, 0, 0, 0.85);
+    /* 标题用满整宽、真正居中；右下角的平台标签压在标题下面一行，
+       两者上下错开，标题再长也不会被盖住 */
+    padding: 0 0.7rem;
+    background: rgba(3, 9, 20, 0.34);
+    backdrop-filter: blur(16px) saturate(1.05);
+    -webkit-backdrop-filter: blur(16px) saturate(1.05);
+    pointer-events: none;
   }
-  /* 系列卡与游戏卡共用 --game（游戏库里两者混排在同一网格，高度必须一致） */
-
   .card-title {
     @apply font-pixel text-[10px] leading-[1.5] tracking-normal;
   }
@@ -403,12 +393,12 @@ textarea {
     font-size: 13px;
     line-height: 1.4;
   }
-  /* 游戏卡片标题：12.5px 单行，超长省略；文字压在毛玻璃上，加一点投影保证可读 */
+  /* 游戏卡片标题：13px 单行，超长省略；压在模糊过的封面上，靠投影保证可读 */
   .card-title--game {
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 1.3;
     letter-spacing: 0.01em;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
   }
   .card-sub {
     @apply text-[8px] leading-[1.4];
@@ -440,29 +430,26 @@ textarea {
     color: #a8ddf9;
   }
 
-  /* 图片右下角的平台标签（FC / ARCADE / NEOGEO…）：毛玻璃小方框，
-     底色由白色半透明膜 + 模糊组成，夜间模式下不再是死黑块 */
+  /* 平台标签（FC / ARCADE / NEOGEO…）：压在模糊带右下角。
+     底是烟熏色（不是死黑），身后再模糊一层，配上亮边和亮字 ——
+     封面再花也读得清，夜间模式下也不会糊成一块黑 */
   .platform-badge {
-    @apply absolute bottom-1.5 right-1.5 z-10 inline-flex items-center border px-1.5 py-1 font-pixel text-[10px] leading-none tracking-wide;
-    /* 白膜本身就够实（0.32 -> 0.14），所以压在深色封面上也是一块亮玻璃，
-       不会像之前用深底那样在黑封面上糊成一块黑标签 */
-    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.12));
-    backdrop-filter: blur(10px) brightness(1.35) saturate(1.35);
-    -webkit-backdrop-filter: blur(10px) brightness(1.35) saturate(1.35);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    @apply absolute bottom-[7px] right-2 z-10 inline-flex max-w-full items-center border px-1 py-[3px] font-pixel text-[9px] leading-none tracking-wide;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(4, 10, 24, 0.66);
+    backdrop-filter: blur(8px) saturate(1.1);
+    -webkit-backdrop-filter: blur(8px) saturate(1.1);
   }
 
-  /* 游戏类型标签（动作 / 射击 / RPG…）：压在整张卡片右下角的毛玻璃板上，
-     与封面上那个平台标签上下错层，标题始终居中不受它影响 */
+  /* 游戏类型标签（动作 / 射击 / RPG…）：封面左上角，和精选星标并排，同款烟熏底 */
   .genre-badge {
-    @apply absolute right-2 top-1/2 z-10 inline-flex max-w-[3.25rem] -translate-y-1/2 items-center truncate border px-1 py-1 font-pixel text-[9px] leading-none tracking-tight;
-    border-color: rgba(76, 201, 255, 0.55);
-    background: linear-gradient(to bottom, rgba(76, 201, 255, 0.3), rgba(76, 201, 255, 0.12));
-    backdrop-filter: blur(10px) brightness(1.5) saturate(1.5);
-    -webkit-backdrop-filter: blur(10px) brightness(1.5) saturate(1.5);
-    color: #cfeeff;
-    text-shadow: 0 0 8px rgba(76, 201, 255, 0.45);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    @apply inline-flex max-w-[4.5rem] items-center truncate border px-1.5 py-1 font-pixel text-[9px] leading-none tracking-tight;
+    border-color: rgba(140, 220, 255, 0.7);
+    background: rgba(4, 10, 24, 0.66);
+    backdrop-filter: blur(8px) saturate(1.1);
+    -webkit-backdrop-filter: blur(8px) saturate(1.1);
+    color: #e2f6ff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
   }
 
   /* 平台卡片右下角的游戏数量标签：不占文字区高度，压在封面右下角。
@@ -638,30 +625,26 @@ html[data-theme='light'] .card-cover-bg {
   opacity: 0.78;
 }
 
-html[data-theme='light'] .card-body--game {
-  background-image: linear-gradient(
-      105deg,
-      rgba(255, 255, 255, 0.95) 0%,
-      rgba(255, 255, 255, 0.62) 40%,
-      rgba(255, 255, 255, 0.5) 62%,
-      rgba(255, 255, 255, 0.82) 100%
-    ),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.88));
-  border-top-color: rgba(12, 26, 52, 0.12);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 -8px 14px -12px rgba(12, 26, 52, 0.28);
-}
-/* 白天玻璃板变亮，标题必须翻成深字 */
-html[data-theme='light'] .card-title--game {
-  color: #12233d !important;
-  text-shadow: none;
-}
+/* 白天也用同一套压暗：卡片本身就是封面，白字要在任何封面上都站得住，
+   浅色主题里把压暗调浅反而会让白字糊在亮封面上 */
 
 /* 窄屏卡片小，模糊半径按像素算会过重，顺手也省 GPU */
 @media (max-width: 640px) {
   .card-cover-bg {
     filter: blur(13px) saturate(1.25) brightness(0.62);
+  }
+  .card-scrim {
+    padding: 0 0.6rem;
+  }
+  .card-title--game {
+    font-size: 12px;
+  }
+  /* 两列时卡片只有 180px 宽，平台标签收小一档，别抢了封面 */
+  .platform-badge {
+    bottom: 6px;
+    right: 7px;
+    padding: 2px 4px;
+    font-size: 8px;
   }
 }
 
@@ -690,11 +673,9 @@ html[data-theme='light'] .card-title--game {
   filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.55));
 }
 
-/* 浅色主题里压暗会变成脏灰，改成略微提亮再降不透明度 */
-html[data-theme='light'] .cover-echo {
-  filter: blur(14px) saturate(0.9) brightness(1.06);
-  opacity: 0.55;
-}
+/* 卡片已经是「整张就是封面」，回声底必须是不透明的压暗版本，
+   两个主题都用同一套滤镜 —— 浅色主题里把它调亮+半透明会让底部模糊带发白、
+   白字糊在上面 */
 
 /* 窄屏卡片只有 170px 宽，模糊半径按像素算会显得过重，顺手也省点 GPU */
 @media (max-width: 640px) {
@@ -951,6 +932,13 @@ html[data-theme='light'] .on-art .px-card .text-white\/40 {
   color: var(--fg) !important;
 }
 
+/* 卡片标题压在模糊带上：浅色主题里也必须保持白字（上面的 text-white 重映射会
+   把它压成深色，深字压深底直接看不见），这里拉回白色并保留投影 */
+html[data-theme='light'] .card-title--game {
+  color: #ffffff !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
 /* 霓虹青在浅底上对比不足：白天统一压成较深的青蓝（叠图区里另作处理） */
 html[data-theme='light'] .text-neon {
   color: #0a7ab8 !important;
@@ -982,21 +970,8 @@ html[data-theme='light'] .genre-chip {
   color: #0a5f8f !important;
 }
 
-/* 封面类型标签：浅色主题下改成白底深字，压在图片上也看得清 */
-html[data-theme='light'] .genre-badge {
-  border-color: rgba(10, 111, 168, 0.45) !important;
-  background: rgba(255, 255, 255, 0.9) !important;
-  color: #0a5f8f !important;
-  text-shadow: none !important;
-}
-
-/* 平台标签同理：白天用更实的白玻璃，避免在亮封面上糊掉 */
-html[data-theme='light'] .platform-badge {
-  /* 白天压在亮封面上，白玻璃会把平台色（NEOGEO 的黄、FC 的红）冲没，
-     这里反过来用深玻璃，平台色照样发亮 */
-  background: linear-gradient(to bottom, rgba(16, 30, 58, 0.86), rgba(6, 14, 32, 0.9));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 1px 3px rgba(12, 26, 52, 0.24);
-}
+/* 封面上的两个标签始终压在插画上，两个主题都用同一套烟熏底 + 亮字，
+   不再按主题翻转（翻转成白底后压在亮封面上反而更糊） */
 
 /* 数量标签始终压在深色封面插画上，浅色主题下也保持「深底 + 平台色字」，
    所以这里不再做主题覆盖。 */
