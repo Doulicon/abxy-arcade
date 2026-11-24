@@ -238,6 +238,7 @@ textarea {
     transition: background-color 0.15s ease, transform 0.15s ease, filter 0.15s ease;
   }
   .px-card > .px-card-in {
+    position: relative;
     display: flex;
     height: 100%;
     width: 100%;
@@ -340,6 +341,7 @@ textarea {
      ------------------------------------------------------------------ */
   .card-art {
     position: relative;
+    z-index: 1;
     width: 100%;
     flex: none;
     overflow: hidden;
@@ -349,9 +351,10 @@ textarea {
     aspect-ratio: 1 / 1;
   }
   .card-art--game {
-    /* 竖版卡 3:4：FC 盒图（350×478 ≈ 0.73）放进来只裁 2% 上下，左右完整不削；
-       比早先的 400:567 更墩实，配一行 4 列不会显得细长 */
+    /* 竖版卡 3:4：FC 盒图（350×478 ≈ 0.73）放进来只裁 2% 上下，左右完整不削。
+       背景透明，让 PixelCard 的整卡模糊封面底透上来（见 .card-cover-bg） */
     aspect-ratio: 3 / 4;
+    background: transparent;
   }
 
   .card-body {
@@ -361,11 +364,23 @@ textarea {
     height: 7.375rem; /* 118px ≈ 401 − 275 − 6 */
   }
   .card-body--game {
-    /* 竖版卡：文字区只放一行游戏名（13px×1.32≈17px），32px 足够上下留呼吸；
-       早先 80px 两行名 + 类型标签会把卡片拉得很长，类型标签已挪到封面角上 */
+    /* 毛玻璃条：只放一行居中的游戏名。底下就是整卡那张模糊封面（.card-cover-bg），
+       这里再叠一层半透明膜 + backdrop-blur 做成真正的磨砂玻璃。
+       封面是方图、横图还是竖版，露出的这条观感都一致 */
+    position: relative;
+    z-index: 2;
     height: 2rem;
+    flex: none;
+    align-items: center;
     justify-content: center;
-    padding: 0.375rem 0.625rem;
+    padding: 0 0.5rem;
+    /* 顶部几乎透明 -> 底部加深：和上方露出的模糊封面无缝相接，
+       整块（留白 + 标题条）看起来是同一片磨砂玻璃，而不是硬切一条黑带 */
+    background: linear-gradient(to bottom, rgba(4, 12, 26, 0.1), rgba(4, 12, 26, 0.55));
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
   /* 系列卡与游戏卡共用 --game（游戏库里两者混排在同一网格，高度必须一致） */
 
@@ -418,16 +433,7 @@ textarea {
     @apply absolute bottom-1.5 right-1.5 inline-flex items-center border px-1.5 py-1 font-pixel text-[10px] leading-none tracking-wide;
   }
 
-  /* 右下角标签组：类型标签 + 平台标签并排，避免互相重叠 */
-  .badge-row {
-    @apply absolute bottom-1.5 right-1.5 flex items-center gap-1;
-  }
-  /* 组内的平台标签交给父容器定位，不再各自绝对定位 */
-  .badge-row .platform-badge {
-    @apply static;
-  }
-
-  /* 封面上的游戏类型标签（动作 / 射击 / RPG…） */
+  /* 封面上的游戏类型标签（动作 / 射击 / RPG…）：左上角，5 列卡上不跟平台标签抢右下角 */
   .genre-badge {
     @apply inline-flex max-w-[72px] items-center truncate border px-1.5 py-1 font-pixel text-[9px] leading-none tracking-wide;
     border-color: rgba(76, 201, 255, 0.5);
@@ -582,6 +588,47 @@ textarea {
 }
 
 /* ------------------------------------------------------------------
+   整卡模糊封面底：不管封面是 1:1 方图、16:10 横图还是竖版，
+   卡片露出来的留白都垫同一张图放大模糊的版本，再被下方文字区的
+   毛玻璃条接住 —— 观感统一，不会出现黑块 / 白块 / 生硬边界。
+   外扩 8% + 微缩放是为了盖住 blur 在边缘产生的羽化。
+   ------------------------------------------------------------------ */
+.card-cover-bg {
+  position: absolute;
+  left: -8%;
+  top: -8%;
+  width: 116%;
+  height: 116%;
+  /* Tailwind preflight 的 img{max-width:100%} 会把它钳到卡片宽，边缘 blur 羽化会露底 */
+  max-width: none;
+  object-fit: cover;
+  filter: blur(20px) saturate(1.3) brightness(0.62);
+  transform: scale(1.04);
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+/* 浅色主题：压暗会发脏，改成略提亮再降不透明度 */
+html[data-theme='light'] .card-cover-bg {
+  filter: blur(20px) saturate(1.05) brightness(1.02);
+  opacity: 0.78;
+}
+
+html[data-theme='light'] .card-body--game {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.62));
+  border-top-color: rgba(12, 26, 52, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* 窄屏卡片小，模糊半径按像素算会过重，顺手也省 GPU */
+@media (max-width: 640px) {
+  .card-cover-bg {
+    filter: blur(13px) saturate(1.25) brightness(0.62);
+  }
+}
+
+/* ------------------------------------------------------------------
    比例差异大的封面（GBA/NDS 的方图、N64 的横图）改用 object-contain 完整显示，
    空出来的地方垫一层同图放大虚化的底，避免白块/黑边。
    四周外扩 8% + 轻微放大，是为了盖住 blur 在边缘产生的透明羽化。
@@ -592,6 +639,7 @@ textarea {
   top: -8%;
   width: 116%;
   height: 116%;
+  max-width: none;
   object-fit: cover;
   filter: blur(14px) saturate(1.1) brightness(0.5);
   transform: scale(1.04);

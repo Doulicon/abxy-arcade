@@ -191,10 +191,13 @@ export function GameCover({
   game,
   className = '',
   frameRatio = 3 / 4,
+  echo = true,
 }: {
   game: Game;
   className?: string;
   frameRatio?: number;
+  /** 牌面外已有整卡模糊底（游戏卡/系列卡）时传 false，避免双层模糊叠暗 */
+  echo?: boolean;
 }) {
   const [broken, setBroken] = useState(false);
   const [fit, setFit] = useState(false);
@@ -228,17 +231,25 @@ export function GameCover({
 
   if (game.cover && !broken) {
     if (fit) {
+      const fitImg = (
+        <img
+          src={game.cover}
+          alt={game.title}
+          loading="lazy"
+          onLoad={handleLoad}
+          onError={() => setBroken(true)}
+          className={
+            echo
+              ? `cover-fit relative h-full w-full object-contain ${className}`
+              : `relative h-full w-full object-contain ${className}`
+          }
+        />
+      );
+      if (!echo) return fitImg;
       return (
         <div className="relative h-full w-full overflow-hidden">
           <img src={game.cover} alt="" aria-hidden="true" loading="lazy" className="cover-echo" />
-          <img
-            src={game.cover}
-            alt={game.title}
-            loading="lazy"
-            onLoad={handleLoad}
-            onError={() => setBroken(true)}
-            className={`cover-fit relative h-full w-full object-contain ${className}`}
-          />
+          {fitImg}
         </div>
       );
     }
@@ -337,12 +348,12 @@ export function Pagination({
 
 export function SkeletonGrid({ count = 12 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="border-2 border-line/70 bg-panel/60">
           <div className="skeleton aspect-[3/4] w-full" />
-          <div className="flex h-8 items-center px-2.5">
-            <div className="skeleton h-3 w-4/5" />
+          <div className="flex h-8 items-center justify-center px-2.5">
+            <div className="skeleton h-3 w-3/4" />
           </div>
         </div>
       ))}

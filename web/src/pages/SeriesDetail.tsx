@@ -152,7 +152,7 @@ export default function SeriesDetail() {
           {games.length === 0 ? (
             <EmptyState title={t('series.empty')} description={t('series.emptyDesc')} />
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
               {games.map((game, i) => (
                 <GameCard key={game.id} game={game} index={i} />
               ))}

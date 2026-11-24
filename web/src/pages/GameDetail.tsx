@@ -330,7 +330,7 @@ export default function GameDetail() {
               <h2 className="text-lg font-black text-white">{t('game.relatedTitle')}</h2>
               <span className="text-[11px] text-muted">/ {game.platformName}</span>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
               {related.map((g, i) => (
                 <GameCard key={g.id} game={g} index={i} />
               ))}

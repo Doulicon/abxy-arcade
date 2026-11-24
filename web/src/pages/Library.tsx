@@ -154,7 +154,7 @@ export default function Library() {
         ) : (
           <>
             {/* 系列卡片与无系列游戏混排在同一个网格里（无搜索时） */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
               {!q &&
                 series.map((s, i) => (
                   <SeriesCard key={`s-${s.id}`} series={s} index={i} />

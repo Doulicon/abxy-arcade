@@ -1,14 +1,14 @@
 import { Link } from 'react-router-dom';
-import { useI18n } from '../i18n';
 import type { Series } from '../types';
 import { IconPlay, IconStar } from './Icons';
 import { PixelCard } from './PixelCard';
 
 /**
- * 系列卡片：与游戏卡完全同规格 —— 上方竖版封面（3:4），下方 32px 只放一行系列名，
- * 超长省略。系列卡与无系列游戏会在游戏库同一个网格里混排，文字区高度必须一致，
- * 否则同一行的卡片会一高一低。
+ * 系列卡片：与游戏卡完全同规格 —— 上方竖版封面（3:4），下方 32px 毛玻璃条
+ * 只放一行居中的系列名，超长省略。系列卡与无系列游戏会在游戏库同一个网格里
+ * 混排，文字区高度必须一致，否则同一行的卡片会一高一低。
  * 平台标签在图片右下角（与游戏卡片一致），精选星标左上。
+ * 整卡同样垫一层封面模糊底，与游戏卡的留白质感对齐。
  */
 export function SeriesCard({ series, index = 0 }: { series: Series; index?: number }) {
   const platformName = series.platformShort || series.platform || '';
@@ -20,7 +20,7 @@ export function SeriesCard({ series, index = 0 }: { series: Series; index?: numb
       style={{ animationDelay: `${Math.min(index, 12) * 20}ms` }}
       title={series.name}
     >
-      <PixelCard>
+      <PixelCard bgSrc={series.cover || undefined}>
         <div className="card-art card-art--game">
           <div className="h-full w-full transition-transform duration-300 group-hover:scale-[1.06]">
             {series.cover ? (
@@ -43,7 +43,7 @@ export function SeriesCard({ series, index = 0 }: { series: Series; index?: numb
             )}
           </div>
 
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-60 transition-opacity group-hover:opacity-90" />
+          <div className="pointer-events-none absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/25" />
 
           {/* 精选星标：左上角，与游戏卡片一致 */}
           {series.featured && (
@@ -77,7 +77,7 @@ export function SeriesCard({ series, index = 0 }: { series: Series; index?: numb
         </div>
 
         <div className="card-body card-body--game">
-          <h3 className="card-title card-title--game block truncate text-white transition-colors group-hover:text-neon">
+          <h3 className="card-title card-title--game block w-full truncate text-center text-white transition-colors group-hover:text-neon">
             {series.name}
           </h3>
         </div>
