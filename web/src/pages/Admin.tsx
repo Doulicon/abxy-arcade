@@ -966,20 +966,30 @@ export default function Admin() {
 
                     <div className="hidden text-right md:block">
                       <span
-                        title={g.romMissing ? t('admin.status.lostHint') : undefined}
+                        title={
+                          g.romBroken
+                            ? t('admin.status.brokenHint')
+                            : g.romMissing
+                              ? t('admin.status.lostHint')
+                              : undefined
+                        }
                         className={`inline-block border px-1.5 py-0.5 text-[10px] font-bold ${
                           g.hasRom
                             ? 'border-[#3ddc84]/40 bg-[#3ddc84]/10 text-[#3ddc84]'
-                            : g.romMissing
-                              ? 'border-[#ff5b7f]/40 bg-[#ff5b7f]/10 text-[#ff8fa8]'
-                              : 'border-[#ffb020]/40 bg-[#ffb020]/10 text-[#ffb020]'
+                            : g.romBroken
+                              ? 'border-[#c792ea]/40 bg-[#c792ea]/10 text-[#c792ea]'
+                              : g.romMissing
+                                ? 'border-[#ff5b7f]/40 bg-[#ff5b7f]/10 text-[#ff8fa8]'
+                                : 'border-[#ffb020]/40 bg-[#ffb020]/10 text-[#ffb020]'
                         }`}
                       >
                         {g.hasRom
                           ? t('admin.status.ready')
-                          : g.romMissing
-                            ? t('admin.status.lost')
-                            : t('admin.status.missing')}
+                          : g.romBroken
+                            ? t('admin.status.broken')
+                            : g.romMissing
+                              ? t('admin.status.lost')
+                              : t('admin.status.missing')}
                       </span>
                     </div>
 

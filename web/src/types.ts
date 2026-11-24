@@ -44,6 +44,8 @@ export type Game = {
   hasRom: boolean;
   /** 曾登记过 ROM，但文件已不在磁盘（放回后扫描即可恢复） */
   romMissing: boolean;
+  /** 文件在磁盘但内核跑不起来（残缺 clone / 内核不认识的 hack romset） */
+  romBroken: boolean;
   romName: string;
   romSize: number;
   romUrl: string;

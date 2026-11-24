@@ -186,12 +186,18 @@ export default function GameDetail() {
               {!game.hasRom && (
                 <span
                   className={`border px-1.5 py-0.5 text-[10px] font-black ${
-                    game.romMissing
-                      ? 'border-[#ff5b7f]/40 bg-[#ff5b7f]/10 text-[#ff8fa8]'
-                      : 'border-[#ffb020]/40 bg-[#ffb020]/10 text-[#ffb020]'
+                    game.romBroken
+                      ? 'border-[#c792ea]/40 bg-[#c792ea]/10 text-[#c792ea]'
+                      : game.romMissing
+                        ? 'border-[#ff5b7f]/40 bg-[#ff5b7f]/10 text-[#ff8fa8]'
+                        : 'border-[#ffb020]/40 bg-[#ffb020]/10 text-[#ffb020]'
                   }`}
                 >
-                  {game.romMissing ? t('game.romLostBadge') : t('game.romPending')}
+                  {game.romBroken
+                    ? t('game.romBrokenBadge')
+                    : game.romMissing
+                      ? t('game.romLostBadge')
+                      : t('game.romPending')}
                 </span>
               )}
             </div>
@@ -246,6 +252,12 @@ export default function GameDetail() {
             {!game.hasRom && game.romMissing && (
               <p className="mt-2.5 border-l-2 border-[#ff5b7f]/60 pl-2 text-[11px] leading-relaxed text-[#ff8fa8]/85">
                 {t('game.romLostDesc')}
+              </p>
+            )}
+
+            {!game.hasRom && game.romBroken && (
+              <p className="mt-2.5 border-l-2 border-[#c792ea]/60 pl-2 text-[11px] leading-relaxed text-[#c792ea]/85">
+                {t('game.romBrokenDesc')}
               </p>
             )}
 

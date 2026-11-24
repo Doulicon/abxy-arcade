@@ -108,6 +108,11 @@ ensureColumn('games', 'core', "core TEXT NOT NULL DEFAULT ''");
 ensureColumn('games', 'bios_name', "bios_name TEXT NOT NULL DEFAULT ''");
 /** ROM 文件暂时不在磁盘上：保留条目与全部资料，只标记为「缺 ROM」，下次扫描按文件名自动恢复 */
 ensureColumn('games', 'rom_missing', 'rom_missing INTEGER NOT NULL DEFAULT 0');
+/**
+ * ROM 文件在磁盘上、但模拟器内核跑不起来（如残缺的 clone romset、内核不认识的 hack romset）。
+ * 独立于 rom_missing：文件在就不会被扫描清掉，需管理员手动解除。
+ */
+ensureColumn('games', 'rom_broken', 'rom_broken INTEGER NOT NULL DEFAULT 0');
 /** 手动权重：数字越大越靠前（0 = 未设置），用于首页分区与游戏库排序 */
 ensureColumn('games', 'weight', 'weight INTEGER NOT NULL DEFAULT 0');
 db.exec('CREATE INDEX IF NOT EXISTS idx_games_weight ON games(weight DESC)');

@@ -77,6 +77,8 @@ function toGame(row) {
   const platform = PLATFORM_MAP.get(row.platform);
   // rom_file 记着路径但文件已不在磁盘：保留全部资料，只把状态标成「缺 ROM」
   const romMissing = !!row.rom_file && !!row.rom_missing;
+  // 文件在磁盘、但模拟器内核跑不起来（残缺 clone / 内核不认识的 hack romset）
+  const romBroken = !!row.rom_file && !romMissing && !!row.rom_broken;
   // ROM 还是压缩包形态 = 要靠模拟器自己解压。GBK 编码的包会被解成乱码然后
   // 静默退回主菜单，前端据此给玩家一个「打不开就修复」的入口（街机 romset 除外）
   const romPacked =
@@ -105,13 +107,14 @@ function toGame(row) {
     playCount: row.play_count,
     featured: !!row.featured,
     weight: Number(row.weight) || 0,
-    hasRom: !!row.rom_file && !romMissing,
+    hasRom: !!row.rom_file && !romMissing && !romBroken,
     romMissing,
+    romBroken,
     romName: row.rom_name || '',
     romSize: row.rom_size || 0,
     // 街机内核按 URL 末段判断压缩包类型，所以 ROM 地址必须带 .zip 后缀
     romUrl:
-      row.rom_file && !romMissing
+      row.rom_file && !romMissing && !romBroken
         ? `/api/games/${row.id}/rom/${encodeURIComponent(safeRomName(row.rom_name, row.rom_file))}`
         : '',
     /** ROM 仍在 zip 里（模拟器需自行解压），前端可提供「修复」入口 */
@@ -267,7 +270,7 @@ router.get('/games', (req, res) => {
     params.genre = genre;
   }
   if (req.query.featured === '1') where.push('g.featured = 1');
-  if (req.query.playable === '1') where.push("g.rom_file <> '' AND g.rom_missing = 0");
+  if (req.query.playable === '1') where.push("g.rom_file <> '' AND g.rom_missing = 0 AND g.rom_broken = 0");
   // 属于系列的游戏不单独出现在列表里（由系列卡片统一承载）
   where.push('g.series_id IS NULL');
 
@@ -374,11 +377,14 @@ router.get('/series/:id', (req, res) => {
 /** ROM 下载：需要登录，支持 cookie / Bearer / ?t= 三种凭证 */
 function sendRom(req, res) {
   const id = Number(req.params.id);
-  const row = db.prepare('SELECT title, rom_file, rom_missing FROM games WHERE id = ?').get(id);
+  const row = db.prepare('SELECT title, rom_file, rom_missing, rom_broken FROM games WHERE id = ?').get(id);
   if (!row) return res.status(404).json({ error: '游戏不存在' });
   if (!row.rom_file) return res.status(409).json({ error: '该游戏还没有上传 ROM' });
   if (row.rom_missing) {
     return res.status(409).json({ error: 'ROM 文件暂时丢失，请管理员放回 data/roms/ 后重新扫描' });
+  }
+  if (row.rom_broken) {
+    return res.status(409).json({ error: '该 ROM 目前无法运行（romset 不完整或内核不支持），已标记为暂不可玩' });
   }
   // URL 末段只是给模拟器用的文件名（街机靠它匹配 romset），真实路径仍以数据库为准
   if (req.params.file && !/^[A-Za-z0-9._%\-]{1,160}$/.test(req.params.file)) {
@@ -550,11 +556,12 @@ router.get('/admin/games', adminRequired, (req, res) => {
     where.push('g.series_id = @series');
     params.series = Number(series);
   }
-  // rom=broken → 只列「玩不了」的：压根没传过 ROM，或传过但文件已不在磁盘（rom_missing=1）。
+  // rom=broken → 只列「玩不了」的：压根没传过 ROM，传过但文件已不在磁盘（rom_missing=1），
+  // 或文件在但内核跑不起来（rom_broken=1）。
   // 口径与 /admin/stats 的 missingRom、前台卡片的「无 ROM」徽章保持一致。
   const rom = String(req.query.rom || '').trim();
   if (rom === 'broken') {
-    where.push("(g.rom_file = '' OR g.rom_file IS NULL OR g.rom_missing = 1)");
+    where.push("(g.rom_file = '' OR g.rom_file IS NULL OR g.rom_missing = 1 OR g.rom_broken = 1)");
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const total = db.prepare(`SELECT COUNT(*) AS n FROM games g ${whereSql}`).get(params).n;
@@ -1532,7 +1539,7 @@ router.delete('/admin/bios/:name', adminRequired, (req, res) => {
 
 router.get('/admin/stats', adminRequired, (_req, res) => {
   const games = db
-    .prepare("SELECT COUNT(*) AS n, COALESCE(SUM(play_count),0) AS plays, SUM(CASE WHEN rom_file='' OR rom_missing=1 THEN 1 ELSE 0 END) AS broken FROM games")
+    .prepare("SELECT COUNT(*) AS n, COALESCE(SUM(play_count),0) AS plays, SUM(CASE WHEN rom_file='' OR rom_missing=1 OR rom_broken=1 THEN 1 ELSE 0 END) AS broken FROM games")
     .get();
   const users = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
   const favorites = db.prepare('SELECT COUNT(*) AS n FROM favorites').get().n;
