@@ -352,7 +352,7 @@ export function SkeletonGrid({ count = 12 }: { count?: number }) {
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="border-2 border-line/70 bg-panel/60">
           <div className="skeleton aspect-[3/4] w-full" />
-          <div className="flex h-8 items-center justify-center px-2.5">
+          <div className="flex h-10 items-center justify-center px-2.5">
             <div className="skeleton h-3 w-3/4" />
           </div>
         </div>
