@@ -434,7 +434,9 @@ textarea {
      底是烟熏色（不是死黑），身后再模糊一层，配上亮边和亮字 ——
      封面再花也读得清，夜间模式下也不会糊成一块黑 */
   .platform-badge {
-    @apply absolute bottom-[7px] right-2 z-10 inline-flex max-w-full items-center border px-1 py-[3px] font-pixel text-[9px] leading-none tracking-wide;
+    /* 右下角是 10px 的像素阶梯切角（.px-card-shape 的 clip-path），
+       标签必须内缩到 13px 以外，否则右边框会被切成缺角 */
+    @apply absolute bottom-[12px] right-[13px] z-10 inline-flex max-w-full items-center border px-1 py-[3px] font-pixel text-[9px] leading-none tracking-wide;
     border-color: rgba(255, 255, 255, 0.3);
     background: rgba(4, 10, 24, 0.66);
     backdrop-filter: blur(8px) saturate(1.1);
@@ -641,8 +643,8 @@ html[data-theme='light'] .card-cover-bg {
   }
   /* 两列时卡片只有 180px 宽，平台标签收小一档，别抢了封面 */
   .platform-badge {
-    bottom: 6px;
-    right: 7px;
+    bottom: 10px;
+    right: 11px;
     padding: 2px 4px;
     font-size: 8px;
   }
