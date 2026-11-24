@@ -28,6 +28,9 @@ export const PLATFORMS = [
     core: 'fbneo',
     cores: ['fbneo'],
     color: '#f5c518',
+    // 注意：不能加 .7z。FBNeo 的 Emscripten 构建把 7z 支持编译掉了，
+    // 喂 .7z 会直接报「7z archive support is disabled for your platform」。
+    // 街机 romset 必须是 .zip，改版 7z 需先用 7z a 重新打包成 zip。
     exts: ['.zip'],
     romsetName: true,
     // 需要 neogeo.zip 作为 BIOS，缺了会黑屏
@@ -92,7 +95,9 @@ export const PLATFORMS = [
     emulatorCore: 'nds',
     core: 'melonds',
     color: '#c94f7c',
-    exts: ['.nds', '.zip'],
+    // .7z 是 NDS 合集最常见的打包方式；EmulatorJS 按文件头魔数识别压缩格式
+    // （37 7A BC AF 27 1C），自带 extract7z worker，浏览器端能直接解，无需服务端处理
+    exts: ['.nds', '.7z', '.zip'],
   },
   // 9
   {
@@ -134,12 +139,18 @@ export const LEGACY_PLATFORM_IDS = { nes: 'fc', snes: 'sfc' };
 
 export const ROM_EXTS = new Set(PLATFORMS.flatMap((p) => p.exts));
 
+/**
+ * 压缩包后缀：同一个后缀可能属于多个平台（NDS 可以是 .7z 也可以是 .zip，
+ * 街机只收 .zip），无法据此判断平台，猜平台时一律跳过。
+ */
+const ARCHIVE_EXTS = new Set(['.zip', '.7z', '.rar']);
+
 /** 扩展名 → 平台 id（同一后缀对应多个平台时取先出现的那个） */
 const EXT_PLATFORM = (() => {
   const map = new Map();
   for (const p of PLATFORMS) {
     for (const ext of p.exts) {
-      if (ext === '.zip') continue; // zip 无法判断，单独处理
+      if (ARCHIVE_EXTS.has(ext)) continue; // 压缩包无法判断平台，单独处理
       if (!map.has(ext)) map.set(ext, p.id);
     }
   }

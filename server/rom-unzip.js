@@ -168,7 +168,7 @@ export function repairGameRom(gameId) {
   if (!absPath) throw fail(404, 'ROM 文件不在磁盘上，请管理员检查 data/roms 目录');
 
   if (path.extname(absPath).toLowerCase() !== '.zip') {
-    throw fail(400, '这个游戏的 ROM 已经是解压好的文件格式，不需要修复');
+    throw fail(400, '只有 zip 包需要修复；.7z / 裸 ROM 由模拟器内核自己处理，无需修复');
   }
 
   const buf = fs.readFileSync(absPath);
