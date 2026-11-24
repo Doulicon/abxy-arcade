@@ -512,6 +512,8 @@ export default function Admin() {
         mediaFiles: number;
         skipped: { file: string; reason: string }[];
         unresolved: string[];
+        converted: string[];
+        conversionErrors: { file: string; reason: string }[];
       }>('/admin/roms/scan');
       if (res.created.length) {
         toast(t('admin.toast.scanDone', { n: res.created.length }), 'success');
@@ -535,6 +537,12 @@ export default function Admin() {
       }
       if (res.skipped.length) {
         toast(t('admin.toast.scanSkipped', { n: res.skipped.length }), 'info');
+      }
+      if (res.converted?.length) {
+        toast(t('admin.toast.scanConverted', { n: res.converted.length }), 'success');
+      }
+      if (res.conversionErrors?.length) {
+        toast(t('admin.toast.scanConvertFail', { n: res.conversionErrors.length }), 'error');
       }
       if (res.unresolved?.length) {
         const names = res.unresolved.slice(0, 3).join('、');

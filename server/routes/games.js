@@ -22,6 +22,7 @@ import {
   relRomPath,
 } from '../roms.js';
 import { repairGameRom } from '../rom-unzip.js';
+import { convertArcade7zToZip } from '../arcade-7z.js';
 import { authRequired, adminRequired } from '../auth.js';
 import {
   gameUpload,
@@ -779,7 +780,7 @@ function coverFromMedia(romAbsPath, index, extraNames) {
   };
 }
 
-router.post('/admin/games', adminRequired, gameUpload, (req, res) => {
+router.post('/admin/games', adminRequired, gameUpload, async (req, res) => {
   const files = req.files || {};
   const coverFile = files.cover && files.cover[0];
   const romFile = files.rom && files.rom[0];
@@ -797,7 +798,7 @@ router.post('/admin/games', adminRequired, gameUpload, (req, res) => {
     const data = parsePayload(body, {}, originalName);
 
     // ROM 落到 data/roms/<平台 id>/ 下，顺便校验格式与 romset 命名
-    const saved = saveRom(romFile.path, originalName, data.platform);
+    const saved = await saveRom(romFile.path, originalName, data.platform);
     // 封面优先级：玩家上传的图 > 玩家填的 URL > resources 里自动匹配的默认图
     let cover = data.coverUrl;
     let coverSource = cover ? 'manual' : '';
@@ -848,7 +849,7 @@ router.post('/admin/games', adminRequired, gameUpload, (req, res) => {
   }
 });
 
-router.put('/admin/games/:id', adminRequired, gameUpload, (req, res) => {
+router.put('/admin/games/:id', adminRequired, gameUpload, async (req, res) => {
   const id = Number(req.params.id);
   const current = db.prepare('SELECT * FROM games WHERE id = ?').get(id);
   if (!current) {
@@ -884,7 +885,7 @@ router.put('/admin/games/:id', adminRequired, gameUpload, (req, res) => {
 
     if (romFile) {
       const originalName = decodeOriginalName(romFile.originalname);
-      const saved = saveRom(romFile.path, originalName, data.platform);
+      const saved = await saveRom(romFile.path, originalName, data.platform);
       const oldPath = resolveRomPath(current.rom_file);
       removeFileQuietly(oldPath);
       romFileName = saved.romFile;
@@ -1227,9 +1228,9 @@ router.put('/admin/platform-weights', adminRequired, (req, res) => {
  *  2. 没登记过的文件：按默认信息直接建条目（名称 = 文件名去扩展名，平台 = 所在目录）。
  * 旧版平铺在 roms 根目录的文件也会顺手归位。
  */
-router.post('/admin/roms/scan', adminRequired, (_req, res) => {
+router.post('/admin/roms/scan', adminRequired, async (_req, res) => {
   ensureRomLayout();
-  const { files: candidates, unresolved } = listRomCandidates();
+  const { files: candidates, unresolved, converted, conversionErrors } = await listRomCandidates();
   const rows = db
     .prepare(
       'SELECT id, title, platform, description, cover, cover_source, cover_auto_key, aliases, rom_file, rom_name, rom_size, rom_missing FROM games',
@@ -1468,6 +1469,8 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
     enriched,
     mediaFiles: mediaIndex.count,
     unresolved,
+    converted,
+    conversionErrors,
     folders: PLATFORMS.map((p) => ({ platform: p.id, name: p.name, dir: `roms/${p.id}` })),
   });
 });

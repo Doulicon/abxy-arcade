@@ -109,19 +109,45 @@ export function resolveRomPath(romFile) {
   return null;
 }
 
-/** 校验扩展名 / romset 命名，并把临时文件搬进平台目录 */
-export function saveRom(tmpPath, originalName, platformId) {
+/**
+ * 校验扩展名 / romset 命名，并把临时文件搬进平台目录。
+ * 街机上传 .7z 时，先转成 .zip 再落盘（FBNeo 不支持 7z）。
+ */
+export async function saveRom(tmpPath, originalName, platformId) {
   const platform = PLATFORM_MAP.get(platformId);
   if (!platform) throw new Error('请选择有效的游戏平台（或让系统按扩展名自动识别）');
 
   const original = safeFileName(originalName);
   const ext = path.extname(original).toLowerCase();
   const allowed = platform.exts;
-  if (!allowed.includes(ext)) {
+  // 街机允许上传 .7z（会上传后立即转成 .zip），其余平台仍按 exts 严格校验
+  const isArcade7z = platform.romsetName && ext === '.7z';
+  if (!allowed.includes(ext) && !isArcade7z) {
     throw new Error(`该平台不支持 ${ext || '(无扩展名)'} 格式，可用：${allowed.join(' ')}`);
   }
+
+  // 街机 7z → zip 转换。家用机的 7z 不转（模拟器自行解压），只有街机内核不认 7z
+  let finalTmpPath = tmpPath;
+  let finalOriginal = original;
+  let finalOutDir = null;
+  if (isArcade7z) {
+    const { convertArcade7zToZip } = await import('./arcade-7z.js');
+    const { absZipPath, outDir } = await convertArcade7zToZip(tmpPath);
+    // 原文件名改成 .zip 结尾，保持 romset 短名不变
+    finalTmpPath = absZipPath;
+    finalOriginal = original.replace(/\.7z$/i, '.zip');
+    // 临时 7z 用完即删
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch {
+      /* 清理失败不影响主流程 */
+    }
+    // 记下 outDir，zip 被 rename 走后清掉这个空目录
+    finalOutDir = outDir;
+  }
+
   // 街机：FBNeo 用压缩包文件名匹配 romset，名字不对会报 "Romset is unknown"
-  if (platform.romsetName && !/^[A-Za-z0-9_]+\.zip$/.test(original)) {
+  if (platform.romsetName && !/^[A-Za-z0-9_]+\.zip$/.test(finalOriginal)) {
     throw new Error(
       '街机 ROM 文件名必须是 romset 短名（只能是小写字母、数字、下划线，如 mslug.zip、sf2ce.zip），' +
         '否则模拟器内核无法识别；请改好文件名再上传。',
@@ -131,20 +157,28 @@ export function saveRom(tmpPath, originalName, platformId) {
   const dir = platformDir(platform.id);
   fs.mkdirSync(dir, { recursive: true });
 
-  let filename = original;
+  let filename = finalOriginal;
   if (fs.existsSync(path.join(dir, filename))) {
     if (platform.romsetName) {
-      throw new Error(`平台目录 ${platform.id}/ 里已经有同名 romset「${original}」，请勿重复上传`);
+      throw new Error(`平台目录 ${platform.id}/ 里已经有同名 romset「${finalOriginal}」，请勿重复上传`);
     }
-    const base = path.basename(original, path.extname(original));
-    filename = `${base}-${nanoid(6)}${path.extname(original)}`;
+    const base = path.basename(finalOriginal, path.extname(finalOriginal));
+    filename = `${base}-${nanoid(6)}${path.extname(finalOriginal)}`;
   }
 
   const target = path.join(dir, filename);
-  fs.renameSync(tmpPath, target);
+  fs.renameSync(finalTmpPath, target);
+  // 街机 7z 转换时，zip 从临时 outDir 搬走，顺手清掉空目录
+  if (finalOutDir) {
+    try {
+      fs.rmdirSync(finalOutDir);
+    } catch {
+      /* outDir 非空或已不存在，忽略 */
+    }
+  }
   return {
     romFile: relRomPath(platform.id, filename),
-    romName: original,
+    romName: finalOriginal,
     size: fs.statSync(target).size,
     platformId: platform.id,
   };
@@ -233,11 +267,16 @@ const NON_ROM_DIRS = new Set([...NON_ROM_SUBDIRS, 'bios', 'bioses', 'assets', 't
 /**
  * 扫描磁盘上所有 ROM 文件。
  * 平台归属的判定优先级：所在目录名（含中文/大写，如「FC中文游戏全集」）> 文件扩展名。
- * 返回 { files: [{ platformId, absPath, relPath, fileName, size, needsRelocate }], unresolved: [目录名] }
+ * 街机目录下的 .7z 会当场转成 .zip 再入库（FBNeo 不支持 7z，转换失败则跳过并记入 errors）。
+ * 返回 { files: [{ platformId, absPath, relPath, fileName, size, needsRelocate }], unresolved: [目录名], converted: [文件名], conversionErrors: [文件名] }
  */
-export function listRomCandidates() {
+export async function listRomCandidates() {
   const files = [];
   const unresolved = [];
+  const arcade7z = []; // 街机目录下发现的 7z，扫描完后统一转换
+  const converted = [];
+  const conversionErrors = [];
+
   const push = (abs, platformId, needRelocate) => {
     const fileName = path.basename(abs);
     const ext = path.extname(fileName).toLowerCase();
@@ -262,6 +301,11 @@ export function listRomCandidates() {
   for (const p of PLATFORMS) {
     for (const abs of walk(path.join(ROM_DIR, p.id))) {
       const ext = path.extname(abs).toLowerCase();
+      // 街机目录下的 7z：单独收集，扫描完后转成 zip（FBNeo 不认 7z）
+      if (p.romsetName && ext === '.7z') {
+        arcade7z.push({ abs, platformId: p.id });
+        continue;
+      }
       // 平台目录里的文件：扩展名不属于该平台时按扩展名重新推断，避免放错目录就废掉
       if (p.exts.includes(ext)) push(abs, p.id, false);
       else {
@@ -296,6 +340,11 @@ export function listRomCandidates() {
       // 目录名能定平台就用它；否则只信确定的扩展名（zip 不猜，避免整柜 FC 进街机）
       const pid = byName || guessPlatformStrict(abs);
       if (!pid) continue;
+      // 目录名指向街机、且是 7z：也走转换
+      if (PLATFORM_MAP.get(pid)?.romsetName && ext === '.7z') {
+        arcade7z.push({ abs, platformId: pid });
+        continue;
+      }
       push(abs, pid, true);
       matched++;
     }
@@ -315,7 +364,40 @@ export function listRomCandidates() {
     push(path.join(ROM_DIR, entry.name), platformId, true);
   }
 
-  return { files, unresolved };
+  // ④ 街机 7z → zip 转换（玩家可能直接往服务器目录丢文件，不走网页上传）
+  const { convertArcade7zToZip } = await import('./arcade-7z.js');
+  for (const { abs, platformId } of arcade7z) {
+    const base = path.basename(abs, '.7z');
+    // 目标 zip 名：romset 短名 + .zip
+    const zipName = `${base}.zip`;
+    const zipAbs = path.join(path.dirname(abs), zipName);
+    try {
+      // 已存在同名 zip（可能上次已转换）就直接用，不重复转
+      if (fs.existsSync(zipAbs)) {
+        converted.push(zipName);
+        push(zipAbs, platformId, false);
+        fs.rmSync(abs, { force: true });
+        continue;
+      }
+      const { absZipPath, outDir } = await convertArcade7zToZip(abs);
+      // 把转换产物搬到原 7z 同目录，命名对齐 romset 短名
+      fs.renameSync(absZipPath, zipAbs);
+      try {
+        fs.rmdirSync(outDir);
+      } catch {
+        /* outDir 已空/不存在，忽略 */
+      }
+      // 原 7z 删除（已转成 zip，留着会重复导入）
+      fs.rmSync(abs, { force: true });
+      converted.push(zipName);
+      push(zipAbs, platformId, false);
+    } catch (err) {
+      // 改版 romset 或坏包：转换失败就跳过，不删除原 7z，记入错误让管理员知道
+      conversionErrors.push({ file: path.basename(abs), reason: err.message || '转换失败' });
+    }
+  }
+
+  return { files, unresolved, converted, conversionErrors };
 }
 
 /** 根目录遗留文件搬进平台目录，返回新的相对路径 */
