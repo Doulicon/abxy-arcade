@@ -374,7 +374,7 @@ textarea {
     bottom: 0;
     z-index: 2;
     display: flex;
-    height: 25%;
+    height: 20%;
     align-items: center;
     justify-content: center;
     /* 标题用满整宽、真正居中；右下角的平台标签压在标题下面一行，
@@ -436,7 +436,7 @@ textarea {
   .platform-badge {
     /* 右下角是 10px 的像素阶梯切角（.px-card-shape 的 clip-path），
        标签必须内缩到 13px 以外，否则右边框会被切成缺角 */
-    @apply absolute bottom-[12px] right-[13px] z-10 inline-flex max-w-full items-center border px-1 py-[3px] font-pixel text-[9px] leading-none tracking-wide;
+    @apply absolute bottom-[3px] right-[13px] z-10 inline-flex max-w-[calc(100%-1.6rem)] items-center truncate border px-[3px] py-[2px] font-pixel text-[8px] leading-none tracking-wide;
     border-color: rgba(255, 255, 255, 0.3);
     background: rgba(4, 10, 24, 0.66);
     backdrop-filter: blur(8px) saturate(1.1);
@@ -643,10 +643,10 @@ html[data-theme='light'] .card-cover-bg {
   }
   /* 两列时卡片只有 180px 宽，平台标签收小一档，别抢了封面 */
   .platform-badge {
-    bottom: 10px;
+    bottom: 2px;
     right: 11px;
-    padding: 2px 4px;
-    font-size: 8px;
+    padding: 1px 3px;
+    font-size: 7px;
   }
 }
 
