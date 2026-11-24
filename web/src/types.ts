@@ -47,6 +47,8 @@ export type Game = {
   romName: string;
   romSize: number;
   romUrl: string;
+  /** ROM 仍是 zip 压缩包（模拟器需自行解压），可提供「修复」入口 */
+  romPacked: boolean;
   core: string;
   biosName: string;
   needsBios: boolean;

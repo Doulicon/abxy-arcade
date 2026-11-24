@@ -9,8 +9,10 @@ import {
   IconMonitor,
   IconPlay,
   IconSparkle,
+  IconTool,
 } from '../components/Icons';
 import { EmptyState, PageLoader, PlatformBadge, Spinner } from '../components/ui';
+import { useToast } from '../components/Toast';
 import type { Game } from '../types';
 
 type Status = 'loading' | 'ready' | 'error';
@@ -267,6 +269,7 @@ export default function Play() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { t } = useI18n();
+  const toast = useToast();
 
   const mountRef = useRef<HTMLDivElement>(null);
   const ejsRef = useRef<any>(null);
@@ -289,6 +292,7 @@ export default function Play() {
   const [progress, setProgress] = useState(0);
   // 核心下载失败自动重试的次数（跨 effect 保留，避免死循环重试）
   const autoRetryRef = useRef(0);
+  const [repairBusy, setRepairBusy] = useState(false);
 
   // 进入需要登录（等登录态恢复完成再判断，否则会误跳登录页）
   useEffect(() => {
@@ -327,6 +331,30 @@ export default function Play() {
     if (!user || !game) return;
     api.post(`/games/${game.id}/play`).catch(() => undefined);
   }, [user, game]);
+
+  /**
+   * 自助修复：ROM 还压在 zip 里时，模拟器要自己解压；中文 Windows 打的包条目名
+   * 是 GBK，解出乱码后找不到 ROM 就静默退回主菜单（看起来像「点了没反应」）。
+   * 解出裸 ROM 后 romUrl 末段换成真实扩展名，实例重建一次就能进游戏。
+   */
+  const repairAndRestart = async () => {
+    if (!game || repairBusy) return;
+    setRepairBusy(true);
+    try {
+      const res = await api.post<{ ok: boolean; game: Game | null }>(
+        `/games/${game.id}/repair-rom`,
+      );
+      if (res.game) setGame(res.game);
+      setError('');
+      // attempt 在启动 effect 的依赖里，加一才会用新的 romUrl 重建实例
+      setAttempt((a) => a + 1);
+      toast(t('game.repairOk'), 'success');
+    } catch (e) {
+      toast((e as Error)?.message || t('state.error'), 'error');
+    } finally {
+      setRepairBusy(false);
+    }
+  };
 
   // 手柄连接状态 + 连接时同步注入正在运行的模拟器实例
   useEffect(() => {
@@ -655,6 +683,18 @@ export default function Play() {
             {padConnected ? '手柄已连接' : '未检测到手柄 · 可用键盘'}
           </p>
         </div>
+        {game?.romPacked && (
+          <button
+            onClick={repairAndRestart}
+            disabled={repairBusy}
+            title={t('game.repairHint')}
+            className="flex h-8 items-center gap-1.5 border border-[#ffb020]/50 px-2 text-xs font-bold text-[#ffc857] transition-colors hover:border-[#ffb020] hover:bg-[#ffb020]/10 disabled:opacity-60"
+          >
+            {repairBusy ? <Spinner className="h-3.5 w-3.5" /> : <IconTool className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">{t('game.repairRom')}</span>
+            <span className="sm:hidden">{t('game.repairShort')}</span>
+          </button>
+        )}
         <button
           onClick={() => {
             setAttempt((a) => a + 1);

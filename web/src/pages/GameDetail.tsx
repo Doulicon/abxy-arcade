@@ -43,6 +43,7 @@ export default function GameDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [favBusy, setFavBusy] = useState(false);
+  const [repairBusy, setRepairBusy] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -80,6 +81,27 @@ export default function GameDetail() {
       toast(e instanceof ApiError ? e.message : t('state.error'), 'error');
     } finally {
       setFavBusy(false);
+    }
+  };
+
+  /**
+   * 自助修复：ROM 还压在 zip 里时，浏览器端模拟器需要自己解压；中文 Windows
+   * 打的包条目名是 GBK，解出乱码后找不到 ROM 就静默退回主菜单。
+   * 让服务端把里面的 ROM 解出来单独登记，之后模拟器直接读裸文件。
+   */
+  const repairRom = async () => {
+    if (!game || repairBusy) return;
+    setRepairBusy(true);
+    try {
+      const res = await api.post<{ ok: boolean; game: Game | null }>(
+        `/games/${game.id}/repair-rom`,
+      );
+      if (res.game) setGame(res.game);
+      toast(t('game.repairOk'), 'success');
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t('state.error'), 'error');
+    } finally {
+      setRepairBusy(false);
     }
   };
 
@@ -225,6 +247,21 @@ export default function GameDetail() {
               <p className="mt-2.5 border-l-2 border-[#ff5b7f]/60 pl-2 text-[11px] leading-relaxed text-[#ff8fa8]/85">
                 {t('game.romLostDesc')}
               </p>
+            )}
+
+            {game.hasRom && game.romPacked && (
+              // 次要操作：和「收藏 / 分享」同级，不抢「开始游戏」的注意力；
+              // 大多数压缩包本来就能跑，这里只是给「打不开」的人一个自助出口
+              <div className="mt-2.5 flex flex-wrap items-center gap-2 border-l-2 border-line pl-2.5">
+                <p className="text-[11px] leading-relaxed text-white/35">{t('game.repairHint')}</p>
+                <button
+                  onClick={repairRom}
+                  disabled={repairBusy}
+                  className="border border-line bg-panel/60 px-2 py-1 text-[11px] font-bold text-white/60 transition-colors hover:border-neon hover:text-neon disabled:opacity-50"
+                >
+                  {repairBusy ? t('game.repairing') : t('game.repairRom')}
+                </button>
+              </div>
             )}
           </div>
         </div>

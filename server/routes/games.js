@@ -21,6 +21,7 @@ import {
   hasBios,
   relRomPath,
 } from '../roms.js';
+import { repairGameRom } from '../rom-unzip.js';
 import { authRequired, adminRequired } from '../auth.js';
 import {
   gameUpload,
@@ -75,6 +76,14 @@ function toGame(row) {
   const platform = PLATFORM_MAP.get(row.platform);
   // rom_file 记着路径但文件已不在磁盘：保留全部资料，只把状态标成「缺 ROM」
   const romMissing = !!row.rom_file && !!row.rom_missing;
+  // ROM 还是压缩包形态 = 要靠模拟器自己解压。GBK 编码的包会被解成乱码然后
+  // 静默退回主菜单，前端据此给玩家一个「打不开就修复」的入口（街机 romset 除外）
+  const romPacked =
+    !!row.rom_file &&
+    !romMissing &&
+    !!platform &&
+    !platform.romsetName &&
+    path.extname(String(row.rom_file)).toLowerCase() === '.zip';
   return {
     id: row.id,
     title: row.title,
@@ -104,6 +113,8 @@ function toGame(row) {
       row.rom_file && !romMissing
         ? `/api/games/${row.id}/rom/${encodeURIComponent(safeRomName(row.rom_name, row.rom_file))}`
         : '',
+    /** ROM 仍在 zip 里（模拟器需自行解压），前端可提供「修复」入口 */
+    romPacked,
     core: row.core || (platform ? platform.core : ''),
     biosName: row.bios_name || '',
     needsBios: !!(platform && platform.bios),
@@ -383,6 +394,35 @@ function sendRom(req, res) {
 
 router.get('/games/:id/rom', authRequired, sendRom);
 router.get('/games/:id/rom/:file', authRequired, sendRom);
+
+/**
+ * 玩家自助修复：把压缩包里的 ROM 解出来单独放一份，让模拟器直接读裸文件。
+ *
+ * 场景：中文 Windows 打的 zip 里条目名是 GBK 且没有 UTF-8 标志位，浏览器端
+ * 的模拟器解出乱码后找不到 ROM，静默退回主菜单（看起来就是「点了没反应」）。
+ * 解出一份真实扩展名的文件后 URL 末段变成 .nes/.smc，模拟器就不再走解压。
+ *
+ * 原压缩包保留不动；任何一步失败都不写数据库，把原因原样返回给玩家。
+ */
+router.post('/games/:id/repair-rom', authRequired, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: '无效的游戏 ID' });
+  try {
+    const result = repairGameRom(id);
+    const row = db
+      .prepare(`SELECT ${GAME_COLUMNS} FROM games g WHERE g.id = @id`)
+      .get({ id, uid: req.user ? req.user.id : 0 });
+    console.log(
+      `  ▸ ROM 修复 #${id}「${row ? row.title : ''}」→ ${result.romFile}` +
+        (result.reused ? '（复用已解出的文件）' : ''),
+    );
+    res.json({ ok: true, ...result, game: row ? toGame(row) : null });
+  } catch (err) {
+    const status = Number(err.status) || 500;
+    if (status >= 500) console.error('[repair-rom] 修复失败', err);
+    res.status(status).json({ error: err.message || '修复失败' });
+  }
+});
 
 /** BIOS（街机必备，如 neogeo.zip）：同样需要登录 */
 router.get('/bios/:name', authRequired, (req, res) => {
@@ -1338,6 +1378,22 @@ router.post('/admin/roms/scan', adminRequired, (_req, res) => {
   // ② 剩下没被认领的文件：按默认资料新建
   for (const file of candidates) {
     if (claimed.has(file)) continue;
+    // 玩家点过「修复」的包：ROM 已解出并登记，压缩包原件留在磁盘上做备份，
+    // 这里要跳过它，否则每次扫描都会凭空多出一条同名游戏
+    if (/\.zip$/i.test(file.fileName)) {
+      const relPath = file.relPath.replace(/\\/g, '/').toLowerCase();
+      const relDir = path.posix.dirname(relPath);
+      const prefix = relDir === '.' ? '' : `${relDir}/`;
+      const stem = path.basename(file.fileName).replace(/\.zip$/i, '').toLowerCase();
+      const alreadyExtracted = rows.some((r) => {
+        const rf = String(r.rom_file || '').replace(/\\/g, '/').toLowerCase();
+        return !!rf && !rf.endsWith('.zip') && rf.startsWith(`${prefix}${stem}.`);
+      });
+      if (alreadyExtracted) {
+        skipped.push({ file: file.fileName, reason: '已解压修复（保留打包原件）' });
+        continue;
+      }
+    }
     const platform = PLATFORM_MAP.get(file.platformId);
     if (!platform) {
       skipped.push({ file: file.fileName, reason: '无法识别平台' });
