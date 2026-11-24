@@ -110,6 +110,7 @@ function toGame(row) {
     hasRom: !!row.rom_file && !romMissing && !romBroken,
     romMissing,
     romBroken,
+    romBrokenReason: row.rom_broken_reason || '',
     romName: row.rom_name || '',
     romSize: row.rom_size || 0,
     // 街机内核按 URL 末段判断压缩包类型，所以 ROM 地址必须带 .zip 后缀

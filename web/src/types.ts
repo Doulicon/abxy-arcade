@@ -46,6 +46,8 @@ export type Game = {
   romMissing: boolean;
   /** 文件在磁盘但内核跑不起来（残缺 clone / 内核不认识的 hack romset） */
   romBroken: boolean;
+  /** 不可玩的具体原因 key：rom-incomplete / romset-unknown / bios-missing / '' */
+  romBrokenReason: string;
   romName: string;
   romSize: number;
   romUrl: string;

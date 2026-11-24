@@ -257,7 +257,13 @@ export default function GameDetail() {
 
             {!game.hasRom && game.romBroken && (
               <p className="mt-2.5 border-l-2 border-[#c792ea]/60 pl-2 text-[11px] leading-relaxed text-[#c792ea]/85">
-                {t('game.romBrokenDesc')}
+                {game.romBrokenReason === 'rom-incomplete'
+                  ? t('game.brokenRomIncomplete')
+                  : game.romBrokenReason === 'romset-unknown'
+                    ? t('game.brokenRomsetUnknown')
+                    : game.romBrokenReason === 'bios-missing'
+                      ? t('game.brokenBiosMissing')
+                      : t('game.romBrokenDesc')}
               </p>
             )}
 

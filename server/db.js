@@ -113,6 +113,14 @@ ensureColumn('games', 'rom_missing', 'rom_missing INTEGER NOT NULL DEFAULT 0');
  * 独立于 rom_missing：文件在就不会被扫描清掉，需管理员手动解除。
  */
 ensureColumn('games', 'rom_broken', 'rom_broken INTEGER NOT NULL DEFAULT 0');
+/**
+ * 不可玩的具体原因（配合 rom_broken=1 使用），给玩家一个明确解释而不是笼统的「暂不可玩」：
+ *   'rom-incomplete' = ROM 不完整（clone romset 缺父 rom 文件）
+ *   'romset-unknown' = 内核不认识这个 romset（hack 包 / 内核版本太旧）
+ *   'bios-missing'   = 缺少 BIOS（如 neogeo.zip 未上传）
+ * 空字符串 = 未标注原因。
+ */
+ensureColumn('games', 'rom_broken_reason', "rom_broken_reason TEXT NOT NULL DEFAULT ''");
 /** 手动权重：数字越大越靠前（0 = 未设置），用于首页分区与游戏库排序 */
 ensureColumn('games', 'weight', 'weight INTEGER NOT NULL DEFAULT 0');
 db.exec('CREATE INDEX IF NOT EXISTS idx_games_weight ON games(weight DESC)');
