@@ -62,7 +62,7 @@ export function SeriesCard({ series, index = 0 }: { series: Series; index?: numb
                 color: series.platformColor || '#4cc9ff',
                 borderColor: `${series.platformColor || '#4cc9ff'}80`,
                 background: 'rgba(4,10,24,.86)',
-                textShadow: `0 0 8px ${series.platformColor || '#4cc9ff'}55`,
+                textShadow: `0 1px 2px rgba(4,10,24,.5), 0 0 8px ${series.platformColor || '#4cc9ff'}55`,
               }}
             >
               {platformName}

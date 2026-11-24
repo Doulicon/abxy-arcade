@@ -60,7 +60,7 @@ export function GameCard({ game, index = 0 }: { game: Game; index?: number }) {
             style={{
               color: game.platformColor,
               borderColor: `${game.platformColor}80`,
-              textShadow: `0 0 8px ${game.platformColor}55`,
+              textShadow: `0 1px 2px rgba(4,10,24,.5), 0 0 8px ${game.platformColor}55`,
             }}
           >
             {game.platformShort}
