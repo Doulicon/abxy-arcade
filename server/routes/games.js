@@ -49,13 +49,26 @@ const SORTS = {
     'g.weight DESC, (SELECT COUNT(*) FROM favorites f2 WHERE f2.game_id = g.id) DESC, g.id DESC',
 };
 
-/** 街机内核按压缩包名识别 romset，所以 URL 末段用原始文件名而不是随机名 */
+/**
+ * 街机内核按压缩包名识别 romset，所以 URL 末段用原始文件名而不是随机名。
+ *
+ * 必须先切掉扩展名再清洗主名：中文名清洗后是一串下划线，如果整串一起做
+ * `^[._]+` 剥离，会把扩展名前的那个点也吃掉（「勇者斗恶龙.zip」→「zip」），
+ * 校验失败就回退成整条路径，URL 里出现 `/` 会被接口的 400 白名单拒掉。
+ */
 function safeRomName(name, fallback) {
-  const base = String(name || '')
+  const pickExt = (s) => ((String(s || '').match(/\.[A-Za-z0-9]{1,8}$/) || [''])[0] || '').toLowerCase();
+  const raw = String(name || '');
+  // 扩展名必须以磁盘上的实际文件为准：rom_name 保留的是上传时的原始名，
+  // 可能写成 .nes 而真实文件是 .zip（内层名），EJS 靠 URL 末段判断要不要解包
+  const ext = pickExt(fallback) || pickExt(raw) || '.bin';
+  const stem = raw
+    .replace(/\.[A-Za-z0-9]{1,8}$/, '')
     .replace(/[^\w.\-]/g, '_')
     .replace(/^[._]+/, '')
-    .slice(0, 96);
-  return /\.[A-Za-z0-9]{1,8}$/.test(base) ? base : fallback;
+    .replace(/[._]+$/, '')
+    .slice(0, 88);
+  return (stem || 'rom') + ext;
 }
 
 function toGame(row) {
